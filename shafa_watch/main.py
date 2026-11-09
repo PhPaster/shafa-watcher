@@ -29,7 +29,8 @@ def fmt_price(v) -> str:
     return f"{v:,.0f}".replace(",", " ")
 
 
-def build_caption(item: dict, d: dict | None, rule: rules.Rule) -> tuple[str, list[str], str]:
+def build_caption(item: dict, d: dict | None, rule: rules.Rule, priority: bool | None = None,
+                  found_materials: list[str] | None = None) -> tuple[str, list[str], str]:
     url = absolute_url(item.get("url") or (d or {}).get("url") or f"/uk/item/{item['id']}")
     name = (d or {}).get("name") or item.get("name") or "Нова річ"
     brand = ((d or {}).get("brand") or item.get("brand") or {}).get("name") or next(iter(rule.brands.values()), "")
@@ -38,7 +39,7 @@ def build_caption(item: dict, d: dict | None, rule: rules.Rule) -> tuple[str, li
     price = (d or {}).get("price") or item.get("price")
     old = (d or {}).get("oldPrice") or item.get("oldPrice")
     disc = (d or {}).get("discountPercent") or item.get("discountPercent")
-    mats = rules.materials_of(d)
+    mats = rules.materials_of(d) or [m.capitalize() for m in (found_materials or [])]
 
     price_line = f"💰 <b>{fmt_price(price)} грн</b>"
     if old and float(old) > float(price or 0):
@@ -46,7 +47,7 @@ def build_caption(item: dict, d: dict | None, rule: rules.Rule) -> tuple[str, li
         if disc:
             price_line += f" (−{int(disc)}%)"
     tag = " · ".join(x for x in (esc(brand), f"розмір {esc(', '.join(sizes))}" if sizes else "") if x)
-    lines = [f"🆕 <b>{esc(name)}</b>"] + ([f"🏷 {tag}"] if tag else [])
+    lines = [f"{'⭐' if priority else '🆕'} <b>{esc(name)}</b>"] + ([f"🏷 {tag}"] if tag else [])
     if cond:
         lines.append(f"✨ Стан: {esc(cond)}")
     lines.append(price_line)
@@ -254,15 +255,21 @@ def run(args) -> int:
                 reason = rules.detail_check(item, d, r)
                 (reasons if reason else ok).append(reason or r)
             passing = ok
+        priority, mats = None, []
+        if passing:
+            mreason, priority, mats = rules.material_check(item, d, cfg.category_materials)
+            if mreason:
+                reasons.append(mreason)
+                passing = []
         if not passing:
             log.info("  пропуск %s «%s»: %s", pid, item.get("name"), "; ".join(dict.fromkeys(reasons)))
             if not args.demo:
                 state.mark(pid)
             continue
         rule = passing[0]
-        caption, photos, url = build_caption(item, d, rule)
+        caption, photos, url = build_caption(item, d, rule, priority=priority, found_materials=mats)
         try:
-            tg.listing(caption, photos[:photos_n], url)
+            tg.listing(caption, photos[:photos_n], url, silent=priority is False)
         except Exception as e:  # noqa: BLE001
             # Не позначаємо як бачене — спробуємо наступного запуску.
             log.error("Telegram: %s", e)

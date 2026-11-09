@@ -30,6 +30,8 @@ COMMANDS = [
     ("on", "Увімкнути бренд знову: /on COS"),
     ("condition", "Мінімальний стан: /condition 3 (або /condition COS 2)"),
     ("sizes", "Розміри: /sizes одяг L XL"),
+    ("materials", "Матеріали категорії: /materials светри: вовна, кашемір"),
+    ("prefer", "Пріоритетні матеріали: /prefer взуття: шкіра, замша"),
     ("help", "Довідка"),
 ]
 
@@ -55,9 +57,23 @@ HELP = """<b>Керування Shafa Watcher</b>
 /sizes взуття 45 45.5 46
 /sizes взуття - — не шукати взуття
 
+<b>Матеріали за категоріями</b> (для всіх брендів; шукаю в назві, описі й полі «Матеріал»)
+/materials — показати
+/materials светри: вовна, кашемір, альпака, ангора — лише такі
+/materials светри + мохер · /materials светри - кашемір
+/materials светри невідомі так — надсилати й без вказаного матеріалу (за замовчуванням ні)
+/materials светри off — прибрати обмеження
+/prefer взуття: шкіра, замша — пріоритет: такі приходять зі ⭐ і звуком, решта — тихо
+/prefer взуття + нубук · /prefer взуття - замша · /prefer взуття off
+
+Матеріали: {mats}
+
 Категорії: джинси, штани, брюки, шорти, футболки, поло, сорочки, светри, кардигани, худі, лонгсліви, кофти, верхній одяг, куртки, пуховики, пальто, піджаки, костюми, взуття, кросівки, черевики, туфлі…
 
 Після зміни розмірів чи стану перший прохід лише запам'ятовує поточні товари (без спаму)."""
+
+
+HELP = HELP.replace("{mats}", ", ".join(rules.MATERIALS))
 
 
 class Bot:
@@ -423,3 +439,94 @@ class Bot:
         if self._commit(f"розміри {group} → {' '.join(norm_vals) or '—'}"):
             self._reply(f"✅ {esc(group)}: {esc(', '.join(norm_vals)) or 'не шукаю'}. "
                         f"Перший прохід з новими розмірами лише запам'ятає поточні речі.")
+
+    # ------------------------------------------------------------------ матеріали за категоріями
+    _MAT_RX = re.compile(r"^(?P<cat>.+?)\s*(?P<op>:|\+|-(?=\s|$)|\boff\b|\bвимк\w*|\bневідомі\b)\s*(?P<rest>.*)$",
+                         re.I)
+
+    def _materials_text(self) -> str:
+        cm = self.doc.get("category_materials") or {}
+        if not cm:
+            return "Правил матеріалів немає."
+        lines = []
+        for cat, spec in cm.items():
+            parts = []
+            if spec.get("only"):
+                unk = " (без вказаного матеріалу — теж)" if spec.get("if_unknown") == "send" else ""
+                parts.append(f"лише {', '.join(map(str, spec['only']))}{unk}")
+            if spec.get("prefer"):
+                parts.append(f"⭐ {', '.join(map(str, spec['prefer']))}")
+            lines.append(f"<b>{esc(cat)}</b>: {esc('; '.join(parts)) or '—'}")
+        return "\n".join(lines)
+
+    def cmd_materials(self, arg: str) -> None:
+        self._category_materials(arg, "only", "materials")
+
+    def cmd_prefer(self, arg: str) -> None:
+        self._category_materials(arg, "prefer", "prefer")
+
+    def _category_materials(self, arg: str, key: str, verb: str) -> None:
+        if not arg:
+            self._reply("<b>Матеріали за категоріями</b>\n" + self._materials_text()
+                        + f"\n\nЗмінити: /{verb} светри: вовна, кашемір · /{verb} светри + альпака · "
+                          f"/{verb} светри - кашемір · /{verb} светри off")
+            return
+        m = self._MAT_RX.match(arg.strip())
+        if not m:
+            self._reply(f"Формат: /{verb} категорія: матеріал, матеріал · /{verb} категорія + матеріал · "
+                        f"/{verb} категорія - матеріал · /{verb} категорія off")
+            return
+        cat, op, rest = m.group("cat").strip().lower(), m.group("op").lower(), m.group("rest")
+        section = (self.doc.get("defaults") or {}).get("section", "men")
+        try:
+            rules.resolve_categories([cat], section, cat)
+        except rules.ConfigError as e:
+            self._reply(f"❌ {esc(e)}")
+            return
+        cm = self.doc.get("category_materials")
+        if cm is None:
+            self.doc["category_materials"] = cm = CommentedMap()
+        spec = cm.get(cat)
+        if spec is None:
+            spec = CommentedMap()
+        cur = [str(x) for x in (spec.get(key) or [])]
+        if op.startswith("невідомі"):
+            if key != "only":
+                self._reply("«невідомі» стосується лише /materials.")
+                return
+            yes = rest.strip().lower() in ("так", "yes", "send", "надсилати", "+")
+            spec["if_unknown"] = "send" if yes else "skip"
+            new = cur
+        else:
+            vals = [v.strip().lower() for v in re.split(r"[,;]", rest) if v.strip()]
+            if op in (":", "+", "-") and not vals:
+                self._reply("Вкажи матеріали через кому. Відомі: " + esc(", ".join(rules.MATERIALS)))
+                return
+            try:
+                vals = rules.resolve_material_names(vals, cat)
+            except rules.ConfigError as e:
+                self._reply(f"❌ {esc(e)}")
+                return
+            if op == ":":
+                new = vals
+            elif op == "+":
+                new = list(dict.fromkeys(cur + vals))
+            elif op == "-":
+                new = [x for x in cur if x not in vals]
+            else:                                   # off / вимкнути
+                new = []
+        if new:
+            spec[key] = self._flow(new)
+        else:
+            spec.pop(key, None)
+            if key == "only":
+                spec.pop("if_unknown", None)
+        if spec:
+            cm[cat] = spec
+        else:
+            cm.pop(cat, None)
+        if not cm:
+            self.doc.pop("category_materials", None)
+        label = "лише" if key == "only" else "⭐ пріоритет"
+        if self._commit(f"матеріали {cat}: {label} {', '.join(new) or '—'}"):
+            self._reply(f"✅ {esc(cat)}: {label} — {esc(', '.join(new)) or 'без обмежень'}\n\n" + self._materials_text())

@@ -45,7 +45,7 @@ class FakeTelegram:
     def __init__(self, *a, **k):
         self.dry_run = False
 
-    def listing(self, caption, photos, url):
+    def listing(self, caption, photos, url, silent=False):
         FakeTelegram.sent.append(url.replace("https://shafa.ua", ""))
 
     def text(self, t):

@@ -109,6 +109,85 @@ MATERIAL_IDS = {"бавовна": 1243, "вовна": 1245, "кашемір": 12
                 "штучний шовк": 1224, "акрил": 1206, "альпака": 2252, "ангора": 2266}
 
 
+# Матеріали для правил за категоріями: шукаються в назві, описі й полі «Матеріал» (uk / ru / en).
+# (include, exclude): exclude скасовує збіг («штучна шкіра» — не шкіра), якщо поруч немає «натуральна».
+MATERIALS: dict[str, tuple[str, str | None]] = {
+    "вовна": (r"(?<!ба)вовн|шерст|\bwool|merino|мерино|lambswool|ламбсвул|shetland|шетланд", None),
+    "кашемір": (r"кашем[іи]р|cashmere", None),
+    "альпака": (r"альпак|alpaca", None),
+    "ангора": (r"ангор|angora", None),
+    "мохер": (r"мохер|mohair", None),
+    "верблюжа вовна": (r"верблюж|camel\s*hair", None),
+    "шовк": (r"шовк|ш[её]лк|\bsilk|\bseta\b", None),
+    "льон": (r"льон|льну|лля[нн]|льнян|\bлен\b|\bльна\b|linen|\blino\b|leinen", None),
+    "бавовна": (r"бавовн|коттон|котон|хлоп(ок|ка|ко)|cotton", None),
+    "шкіра": (r"шкір|кожа|кожі|кожан|leather|\bpelle\b|\bleder\b",
+              r"штучн\w*\s+(шкір|кож)|еко\s*-?\s*(шкір|кож)|екошкір|экокож|кожзам|шкірзам|дерматин|"
+              r"искусствен\w*\s+кож|faux\s+leather|\bpu\b|vegan\s+leather|кожвініл"),
+    "замша": (r"замш|suede", r"штучн\w*\s+замш|еко\s*-?\s*замш|искусствен\w*\s+замш|faux\s+suede"),
+    "нубук": (r"нубук|nubuck", None),
+    "акрил": (r"акрил|acrylic", None),
+    "поліестер": (r"поліест|полиэст|polyester", None),
+}
+_GENUINE = re.compile(r"натуральн\w*\s+(шкір|кож|замш)|genuine\s+leather|real\s+leather|full\s*grain", re.I)
+
+
+def detect_materials(text: str) -> set[str]:
+    found = set()
+    genuine = bool(_GENUINE.search(text))
+    for name, (inc, exc) in MATERIALS.items():
+        if re.search(inc, text, re.I):
+            if exc and re.search(exc, text, re.I) and not genuine:
+                continue
+            found.add(name)
+    return found
+
+
+def resolve_material_names(values, where: str) -> list[str]:
+    out = []
+    for v in values or []:
+        key = str(v).strip().lower()
+        if key not in MATERIALS:
+            raise ConfigError(f"{where}: невідомий матеріал «{v}». Відомі: {', '.join(MATERIALS)}")
+        out.append(key)
+    return list(dict.fromkeys(out))
+
+
+@dataclass
+class CategoryMaterials:
+    """Правило матеріалів для категорії (для всіх брендів і пошуків).
+    only — річ проходить, лише якщо знайдено хоч один із цих матеріалів;
+    prefer — нічого не відсіює: збіг приходить зі ⭐ і звуком, решта — тихо."""
+    category: str
+    patterns: list[str]
+    only: list[str] = field(default_factory=list)
+    prefer: list[str] = field(default_factory=list)
+    if_unknown: str = "skip"      # only + матеріал не вказано: skip — відсіяти, send — надіслати
+
+CATEGORY_MATERIAL_KEYS = {"only", "prefer", "if_unknown"}
+
+
+def material_check(item: dict, details: dict | None, cms: list[CategoryMaterials]) \
+        -> tuple[str | None, bool | None, list[str]]:
+    """→ (причина відсіву або None, пріоритет: True/False/None якщо правила prefer немає, знайдені матеріали)."""
+    slug = item.get("catalogSlug")
+    matched = [c for c in cms if category_ok(slug, c.patterns)]
+    text = material_text(details, item)
+    found = sorted(detect_materials(text))
+    if not matched:
+        return None, None, found
+    only = {m for c in matched for m in c.only}
+    prefer = {m for c in matched for m in c.prefer}
+    if only and not (set(found) & only):
+        if not found and all(c.if_unknown == "send" for c in matched if c.only):
+            pass
+        elif not found:
+            return f"матеріал не вказано (треба: {', '.join(sorted(only))})", None, found
+        else:
+            return f"матеріал {', '.join(found)} (треба: {', '.join(sorted(only))})", None, found
+    priority = bool(set(found) & prefer) if prefer else None
+    return None, priority, found
+
 @dataclass
 class Rule:
     label: str                           # назва для логів і алертів: «COS», «Visvim #2», «Вовняні светри»
@@ -186,6 +265,7 @@ class Group:
 class Config:
     rules: list[Rule]
     settings: dict
+    category_materials: list[CategoryMaterials] = field(default_factory=list)
 
     @property
     def enabled(self) -> list[Rule]:
@@ -356,7 +436,7 @@ def load(path: str | Path) -> Config:
 
 def loads(text: str) -> Config:
     raw = yaml.safe_load(text) or {}
-    _check_keys(raw, {"settings", "my_sizes", "defaults", "brands", "searches"}, "brands.yaml")
+    _check_keys(raw, {"settings", "my_sizes", "defaults", "brands", "searches", "category_materials"}, "brands.yaml")
     settings = raw.get("settings") or {}
     defaults = dict(raw.get("defaults") or {})
     _check_keys(defaults, set(FILTER_KEYS), "defaults")
@@ -406,7 +486,20 @@ def loads(text: str) -> Config:
             raise ConfigError(f"{label}: пошук без бренду без категорій, матеріалу й ціни — це увесь сайт. "
                               f"Звузь його.")
         rules.append(rule)
-    return Config(rules, settings)
+    section = defaults.get("section")
+    cms = []
+    for cat, spec in (raw.get("category_materials") or {}).items():
+        where = f"category_materials → {cat}"
+        if not isinstance(spec, dict):
+            raise ConfigError(f"{where}: очікую словник з only / prefer")
+        _check_keys(spec, CATEGORY_MATERIAL_KEYS, where)
+        unknown = str(spec.get("if_unknown", "skip"))
+        if unknown not in ("skip", "send"):
+            raise ConfigError(f"{where}: if_unknown має бути skip або send")
+        cms.append(CategoryMaterials(str(cat), resolve_categories([cat], section, where),
+                                     resolve_material_names(spec.get("only"), where),
+                                     resolve_material_names(spec.get("prefer"), where), unknown))
+    return Config(rules, settings, cms)
 
 
 _TRANS = str.maketrans({"ø": "o", "Ø": "o", "æ": "ae", "Æ": "ae", "ß": "ss", "œ": "oe", "đ": "d", "ł": "l"})

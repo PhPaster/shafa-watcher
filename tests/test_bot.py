@@ -140,5 +140,49 @@ class BotTest(unittest.TestCase):
         self.assertEqual(changes, [])
 
 
+    def test_materials_and_prefer_commands(self):
+        tg, changes, cfg = self.run_bot([
+            msg(1, "/materials светри: вовна, кашемір"), msg(2, "/materials светри + альпака, ангора"),
+            msg(3, "/materials светри - кашемір"), msg(4, "/prefer взуття: шкіра, замша"),
+            msg(5, "/materials верхній одяг: вовна"), msg(6, "/materials верхній одяг off"),
+            msg(7, "/materials светри невідомі так")])
+        self.assertEqual(len(changes), 7)
+        cm = {c.category: c for c in cfg.category_materials}
+        self.assertEqual(cm["светри"].only, ["вовна", "альпака", "ангора"])
+        self.assertEqual(cm["светри"].if_unknown, "send")
+        self.assertEqual(cm["взуття"].prefer, ["шкіра", "замша"])
+        self.assertNotIn("верхній одяг", cm)
+        self.assertIn("category_materials:", self.cfg.read_text())
+
+    def test_materials_bad_input(self):
+        tg, changes, _ = self.run_bot([msg(1, "/materials светри: пластик"), msg(2, "/materials шкарпетки: вовна")])
+        self.assertEqual(changes, [])
+        self.assertIn("невідомий матеріал", tg.sent[0]["text"])
+        self.assertIn("невідома категорія", tg.sent[1]["text"])
+
+
+class MaterialCheckTest(unittest.TestCase):
+    def setUp(self):
+        self.cms = rules.loads("""
+category_materials:
+  светри: {only: [вовна, кашемір, альпака, ангора]}
+  взуття: {prefer: [шкіра, замша]}
+""").category_materials
+
+    def check(self, slug, name, desc=""):
+        return rules.material_check({"catalogSlug": slug, "name": name}, {"description": desc}, self.cms)
+
+    def test_only(self):
+        self.assertIsNone(self.check("kofti/svitery", "Светр альпака")[0])
+        self.assertIn("треба", self.check("kofti/svitery", "Светр", "100% бавовна")[0])
+        self.assertIn("не вказано", self.check("kofti/svitery", "Светр зимовий")[0])
+        self.assertIsNone(self.check("kofti/hudi", "Худі бавовна")[0], "інша категорія — без обмежень")
+
+    def test_prefer(self):
+        self.assertEqual(self.check("obuv/botinki", "Черевики", "натуральна шкіра")[:2], (None, True))
+        self.assertEqual(self.check("obuv/krossovki", "Кросівки еко шкіра")[:2], (None, False))
+        self.assertEqual(self.check("rubashki/rubashki", "Сорочка")[:2], (None, None))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -43,7 +43,7 @@ class Telegram:
     def text(self, text: str) -> None:
         self._call("sendMessage", {"text": text, "parse_mode": "HTML", "disable_web_page_preview": True})
 
-    def listing(self, caption: str, photos: list[str], url: str) -> None:
+    def listing(self, caption: str, photos: list[str], url: str, silent: bool = False) -> None:
         """Один товар — одне повідомлення. 1 фото: sendPhoto з кнопкою; кілька: альбом (кнопок у альбомів немає,
         тому посилання є в підписі)."""
         keyboard = {"inline_keyboard": [[{"text": "Відкрити на Shafa", "url": url}]]}
@@ -51,16 +51,18 @@ class Telegram:
             if len(photos) > 1:
                 media = [{"type": "photo", "media": p} for p in photos[:10]]
                 media[0].update({"caption": caption, "parse_mode": "HTML"})
-                self._call("sendMediaGroup", {"media": media})
+                self._call("sendMediaGroup", {"media": media, "disable_notification": silent})
             elif photos:
                 self._call("sendPhoto", {"photo": photos[0], "caption": caption, "parse_mode": "HTML",
-                                         "reply_markup": keyboard})
+                                         "reply_markup": keyboard, "disable_notification": silent})
             else:
-                self._call("sendMessage", {"text": caption, "parse_mode": "HTML", "reply_markup": keyboard})
+                self._call("sendMessage", {"text": caption, "parse_mode": "HTML", "reply_markup": keyboard,
+                                           "disable_notification": silent})
         except RuntimeError as e:
             # Якщо Telegram не зміг завантажити фото — шлемо хоча б текст.
             log.warning("фото не надіслано (%s), шлю текстом", e)
-            self._call("sendMessage", {"text": caption, "parse_mode": "HTML", "reply_markup": keyboard})
+            self._call("sendMessage", {"text": caption, "parse_mode": "HTML", "reply_markup": keyboard,
+                                       "disable_notification": silent})
 
 
 def esc(s) -> str:
