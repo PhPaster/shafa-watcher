@@ -114,11 +114,20 @@ class Health:
             log.error("heartbeat не надіслано: %s", e)
 
 
-def fetch_group(shafa: Shafa, g: rules.Group, state: State, st: dict, demo: bool) -> list[dict]:
+def young_share(batch: list[dict], hours: float) -> float:
+    ages = [rules._age_hours(x.get("createdAt")) for x in batch]
+    return sum(1 for a in ages if a is not None and a <= hours) / max(len(ages), 1)
+
+
+def fetch_group(shafa: Shafa, g: rules.Group, state: State, st: dict, demo: bool,
+                backfill_h: float = 0, force_backfill: bool = False) -> list[dict]:
+    """backfill_h > 0: для групи в першому проході (або force_backfill) гортати, поки на сторінці
+    більшість речей молодші за backfill_h годин (до settings.backfill_max_pages сторінок)."""
     r = g.server
     per_page = int(st.get("items_per_query", 100))
-    max_pages = int(st.get("max_pages", 3))
     ready = state.any_ready(g.key, g.brand_ids) and not demo
+    bf = bool(backfill_h) and not demo and (force_backfill or not ready)
+    max_pages = int(st.get("backfill_max_pages", 5)) if bf else int(st.get("max_pages", 3))
     variants = r.variants()            # напр. «вживані від усіх» + «нові від приватних» — один HTTP-запит
     active = list(range(len(variants)))
     items: list[dict] = []
@@ -131,8 +140,11 @@ def fetch_group(shafa: Shafa, g: rules.Group, state: State, st: dict, demo: bool
         for i, (batch, has_next) in zip(active, res):
             items += [x for x in batch if x["id"] not in seen_ids]
             seen_ids.update(x["id"] for x in batch)
-            # Далі гортаємо лише якщо вся сторінка нова (великий потік між запусками).
-            if ready and has_next and batch and all(not state.is_seen(x["id"]) for x in batch):
+            # Далі гортаємо лише якщо вся сторінка нова (великий потік між запусками),
+            # а при довантаженні — поки більшість речей на сторінці молодші за backfill_h.
+            if has_next and batch and (
+                    (bf and young_share(batch, backfill_h) >= 0.5)
+                    or (ready and not bf and all(not state.is_seen(x["id"]) for x in batch))):
                 nxt.append(i)
         active = nxt
         if not active:
@@ -194,7 +206,9 @@ def run(args) -> int:
     st = cfg.settings
     health = Health(state, tg)
     groups = cfg.groups()
-    due = select_due(groups, cfg, state)
+    force_bf = float(getattr(args, "backfill", 0) or 0)               # разове довантаження всіх брендів за N годин
+    backfill_h = force_bf or float(st.get("backfill_hours", 0) or 0)   # перший прохід нового бренду
+    due = groups if force_bf else select_due(groups, cfg, state)
     if len(due) < len(groups):
         log.info("за розкладом пакетів: %d з %d груп", len(due), len(groups))
     photos_n = int(st.get("photos", 3))
@@ -213,7 +227,7 @@ def run(args) -> int:
     failed = 0
     for g in due:
         try:
-            items = fetch_group(shafa, g, state, st, bool(args.demo))
+            items = fetch_group(shafa, g, state, st, bool(args.demo), backfill_h, bool(force_bf))
         except ShafaError as e:
             failed += 1
             health.count("errors")
@@ -246,14 +260,24 @@ def run(args) -> int:
             health.resolve(f"empty:{g.id}", f"[{g.label()}] знову повертає товари")
         n_new = sum(1 for i in items if not state.is_seen(i["id"]))
         fresh = not state.any_ready(g.key, g.brand_ids)
-        log.info("група %s [%s]: отримано %d, нових %d%s", g.id, g.label(), len(items), n_new,
-                 " — перший прохід, лише запам'ятовую" if fresh and not args.demo else "")
+        note = ""
+        if force_bf:
+            note = f" — довантаження за {force_bf:g} год"
+        elif fresh and not args.demo:
+            note = f" — перший прохід, надсилаю за останні {backfill_h:g} год" if backfill_h \
+                else " — перший прохід, лише запам'ятовую"
+        log.info("група %s [%s]: отримано %d, нових %d%s", g.id, g.label(), len(items), n_new, note)
         for i in items:
             found.setdefault(i["id"], i)
             sources.setdefault(i["id"], []).append(g)
 
     # 2. Нові товари → правила груп, що їх повернули → фільтри → Telegram. Одна річ = одне повідомлення.
-    ids = [pid for pid in found if args.demo or not state.is_seen(pid)]
+    def young(pid) -> bool:
+        a = rules._age_hours(found[pid].get("createdAt"))
+        return bool(backfill_h) and a is not None and a <= backfill_h
+
+    # Разове довантаження переглядає й уже бачені речі (надіслані відсіє антиповтор назви й ціни).
+    ids = [pid for pid in found if args.demo or not state.is_seen(pid) or (force_bf and young(pid))]
     ids.sort(key=lambda pid: (found[pid].get("createdAt") or "", pid), reverse=bool(args.demo))
     if args.demo:
         ids = demo_order(ids, found, sources)
@@ -264,9 +288,9 @@ def run(args) -> int:
         bid = (item.get("brand") or {}).get("id")
         cands: list[rules.Rule] = []
         for g in sources[pid]:
-            if args.demo or state.ready(g.key, bid if g.brand_ids else None):
+            if args.demo or force_bf or state.ready(g.key, bid if g.brand_ids else None) or young(pid):
                 cands += [r for r in g.rules if r.matches_brand(item) and r not in cands]
-        if not cands:   # перший прохід для бренду/групи — лише запам'ятати
+        if not cands:   # перший прохід для бренду/групи, річ старша за backfill_hours — лише запам'ятати
             if not args.demo:
                 state.mark(pid)
             continue
@@ -322,6 +346,12 @@ def run(args) -> int:
             state.mark_title(tkey)
             health.resolve("telegram", "Telegram знову приймає повідомлення")
 
+    if force_bf and not args.demo:
+        try:
+            tg.text(f"📦 <b>Довантаження за {force_bf:g} год</b> завершено: переглянуто {considered}, "
+                    f"надіслано {notified}. Далі — лише нові речі кожні 10 хв.")
+        except Exception as e:  # noqa: BLE001
+            log.error("підсумок довантаження: %s", e)
     health.count("new_ids", considered)
     health.count("notified", notified)
     health.count("requests", shafa.requests_made)
@@ -366,6 +396,8 @@ def main(argv=None) -> int:
     p.add_argument("--dry-run", action="store_true", help="не слати в Telegram, лише лог")
     p.add_argument("--demo", type=int, default=0,
                    help="надіслати N найсвіжіших відповідних товарів, ігноруючи стан (для перевірки вигляду)")
+    p.add_argument("--backfill", type=float, default=0,
+                   help="разово: усі бренди, надіслати відповідні речі за останні N годин (надіслані раніше — ні)")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,

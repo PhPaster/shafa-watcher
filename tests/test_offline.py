@@ -123,6 +123,26 @@ class RunTest(unittest.TestCase):
         self.run_once(cfg)
         self.assertEqual(FakeTelegram.sent, ["/uk/item/32", "/uk/item/34"])
 
+    def test_first_pass_backfill_sends_last_hours(self):
+        body = BASE.format(extra="").replace("my_sizes:", "settings:\n  backfill_hours: 72\nmy_sizes:")
+        cfg = write(self.tmp, body)
+        FakeShafa.catalog.append(item(12, 1, "shtany-i-shorty/dzhinsy", 80))   # старше 72 год — ні
+        self.run_once(cfg)
+        self.assertEqual(sorted(FakeTelegram.sent), ["/uk/item/10", "/uk/item/11"])
+        self.run_once(cfg)
+        self.assertEqual(len(FakeTelegram.sent), 2, "другий прохід не дублює")
+
+    def test_manual_backfill_resends_nothing_twice(self):
+        cfg = write(self.tmp, BASE.format(extra=""))
+        self.run_once(cfg)
+        self.assertEqual(FakeTelegram.sent, [], "без backfill_hours перший прохід тихий")
+        args = argparse.Namespace(config=str(cfg), state=str(self.tmp / "state.json"), dry_run=False, demo=0,
+                                  backfill=72)
+        main.run(args)
+        self.assertEqual(sorted(FakeTelegram.sent), ["/uk/item/10", "/uk/item/11"])
+        main.run(args)
+        self.assertEqual(len(FakeTelegram.sent), 2, "повторне довантаження не дублює надіслане")
+
     def test_same_title_and_price_sent_once(self):
         cfg = write(self.tmp, BASE.format(extra=""))
         self.run_once(cfg)

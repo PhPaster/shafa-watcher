@@ -14,6 +14,9 @@ on:
       demo:
         description: "Надіслати N найсвіжіших відповідних товарів (перевірка вигляду), 0 = звичайний запуск"
         default: "0"
+      backfill:
+        description: "Разово: усі бренди, надіслати відповідні речі за останні N годин (напр. 72), 0 = звичайний запуск"
+        default: "0"
 
 permissions:
   contents: write
@@ -61,7 +64,8 @@ jobs:
     if: ${{ !cancelled() && (needs.gate.result != 'success' || needs.gate.outputs.run == '1') }}
     # ubuntu-slim: 1 vCPU, найдешевший раннер ($0.002/хв проти $0.006 у ubuntu-latest).
     runs-on: ubuntu-slim
-    timeout-minutes: 8
+    # довантаження (backfill) — довгий разовий прохід: сотні запитів із паузами й надсилання в Telegram
+    timeout-minutes: ${{ github.event.inputs.backfill && github.event.inputs.backfill != '0' && 40 || 8 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -81,7 +85,7 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
-        run: python3 -m shafa_watch --demo "${{ github.event.inputs.demo || '0' }}"
+        run: python3 -m shafa_watch --demo "${{ github.event.inputs.demo || '0' }}" --backfill "${{ github.event.inputs.backfill || '0' }}"
 
       - name: Зберегти зміни з Telegram у brands.yaml
         if: always() && hashFiles('.bot_changes') != ''
