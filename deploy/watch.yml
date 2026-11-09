@@ -1,0 +1,58 @@
+name: shafa-watch
+
+on:
+  # Раз на 10 хв, зі зсувом від початку години (GitHub радить уникати :00 через черги).
+  # Чому 10, а не 5 хв: див. README → «Ліміти й вартість». Для приватного репо 5 хв не вміщується в безкоштовні $12/міс.
+  schedule:
+    - cron: "3-59/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      demo:
+        description: "Надіслати N найсвіжіших відповідних товарів (перевірка вигляду), 0 = звичайний запуск"
+        default: "0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: shafa-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    # ubuntu-slim: 1 vCPU, найдешевший раннер ($0.002/хв проти $0.006 у ubuntu-latest).
+    runs-on: ubuntu-slim
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Завантажити стан
+        run: |
+          if git fetch --depth=1 origin state 2>/dev/null; then
+            git show FETCH_HEAD:state.json > state.json
+            echo "стан завантажено: $(wc -c < state.json) байт"
+          else
+            echo "гілки state ще немає — перший запуск лише запам'ятає товари"
+          fi
+
+      - name: Встановити залежності
+        run: python3 -m pip install --quiet --disable-pip-version-check -r requirements.txt || python3 -m pip install --quiet --break-system-packages -r requirements.txt
+
+      - name: Перевірка Shafa
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+        run: python3 -m shafa_watch --demo "${{ github.event.inputs.demo || '0' }}"
+
+      - name: Зберегти стан у гілку state
+        if: always() && hashFiles('state.json') != ''
+        run: |
+          git config user.name "shafa-watch-bot"
+          git config user.email "shafa-watch-bot@users.noreply.github.com"
+          cp state.json "$RUNNER_TEMP/state.json"
+          git checkout --orphan state-tmp
+          git rm -rq --cached .
+          cp "$RUNNER_TEMP/state.json" state.json
+          git add -f state.json
+          git commit -qm "state $(date -u +%FT%TZ)"
+          git push -qf origin HEAD:state
