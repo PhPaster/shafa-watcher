@@ -104,8 +104,17 @@ MEN_SERVER_PARENTS = {"kofti": "kofti", "kofty": "kofti", "obuv": "obuv", "futbo
 
 FILTER_KEYS = ("section", "sizes", "categories", "min_condition", "max_price", "min_price", "materials",
                "materials_include", "materials_exclude", "keywords_exclude", "max_age_hours",
-               "package", "title_include", "text", "reseller_filter")
+               "package", "title_include", "text", "reseller_filter", "seller")
 DEFAULT_PACKAGE = "звичайні"
+# Продавець — характеристика 1757 «Продавець» (однакова в усіх категоріях, перевірено 9.11.2026):
+# 10290 «Приватний», 10291 «Бізнес та інші». «Бізнес та інші» — це й магазини (нові репліки «s-xxl»), і люди,
+# що не вказали статус (вживані речі). Тому за замовчуванням private_new: нові — лише від приватних, вживані — від усіх.
+SELLER_PRIVATE = 10290
+SELLER_MODES = {
+    "private_new": "нові — лише від приватних осіб, вживані — від усіх",
+    "private": "лише приватні особи (і нові, і вживані)",
+    "any": "усі продавці",
+}
 # Перекупники/репліки: мультирозмірні оголошення нового товару («s-xl», «s, m, l, xl», «розміри від s до xl»),
 # репліки й опт. «l-xl» (одна річ на межі розмірів) — не перекупник.
 RESELLER_RX = re.compile(
@@ -219,6 +228,7 @@ class Rule:
     title_include: str | None = None      # regex по назві (дешево, без картки): саб-лейбли «rrl|double rl»
     text: str | None = None               # серверний текстовий пошук (для брендів, яких на Shafa немає)
     reseller_filter: bool = True          # відсіювати мультирозмірні «нові» оголошення, репліки, опт
+    seller: str = "any"                   # SELLER_MODES: private_new | private | any (серверний фільтр)
 
     @property
     def brandless(self) -> bool:
@@ -244,6 +254,8 @@ class Rule:
         k = {"catalog": self.catalog, "sizes": sorted(self.sizes), "cond": self.min_condition,
              "max_price": self.max_price, "min_price": self.min_price, "materials": sorted(self.materials),
              "brandless": self.brandless, "package": self.package, "text": self.text}
+        if self.seller != "any":           # «any» не входить у ключ, щоб старі групи не перезапускались
+            k["seller"] = self.seller
         return hashlib.sha1(json.dumps(k, sort_keys=True).encode()).hexdigest()[:12]
 
     @property
@@ -251,6 +263,20 @@ class Rule:
         if not self.min_condition:
             return []
         return [c for c in CONDITIONS if c <= int(self.min_condition)]
+
+    def variants(self) -> list[tuple[list[int], list[int]]]:
+        """Серверні варіанти запиту (стани, характеристики) — йдуть одним HTTP-запитом через аліаси.
+        private_new: вживані без фільтра продавця + нові лише від приватних."""
+        conds, chars = self.conditions, list(self.materials)
+        priv = sorted(set(chars) | {SELLER_PRIVATE})
+        if self.seller == "private":
+            return [(conds, priv)]
+        if self.seller == "private_new":
+            if conds and 1 not in conds:
+                return [(conds, chars)]
+            used = [c for c in (conds or list(CONDITIONS)) if c != 1]
+            return ([(used, chars)] if used else []) + [([1], priv)]
+        return [(conds, chars)]
 
     def matches_brand(self, item: dict) -> bool:
         return self.brandless or (item.get("brand") or {}).get("id") in self.brands
@@ -416,6 +442,20 @@ def resolve_materials(spec, where: str) -> list[int]:
     return sorted(set(ids))
 
 
+SELLER_ALIASES = {"private_new": "private_new", "нові": "private_new", "нові приватні": "private_new",
+                  "private": "private", "приватні": "private", "приватний": "private",
+                  "any": "any", "усі": "any", "всі": "any", "будь-хто": "any"}
+
+
+def resolve_seller(spec, where: str) -> str:
+    if spec is None:
+        return "any"
+    v = SELLER_ALIASES.get(str(spec).strip().lower())
+    if not v:
+        raise ConfigError(f"{where}: seller має бути private_new (нові лише від приватних), private або any")
+    return v
+
+
 def _check_keys(d: dict, allowed: set[str], where: str) -> None:
     unknown = set(d) - allowed
     if unknown:
@@ -441,6 +481,7 @@ def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> R
         keywords_exclude=fields.get("keywords_exclude"), max_age_hours=fields.get("max_age_hours"),
         package=str(fields.get("package") or DEFAULT_PACKAGE), title_include=fields.get("title_include"),
         text=fields.get("text"), reseller_filter=bool(fields.get("reseller_filter", True)),
+        seller=resolve_seller(fields.get("seller"), where),
     )
 
 

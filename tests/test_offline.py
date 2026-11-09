@@ -27,12 +27,17 @@ class FakeShafa:
     def __init__(self, *a, **k):
         self.requests_made = 0
 
-    def products(self, *, brands, catalog, **k):
-        self.requests_made += 1
+    def products(self, *, brands, catalog, conditions=None, **k):
         out = [i for i in self.catalog
                if (not brands or (i["brand"] or {}).get("id") in brands)
-               and (catalog in (None, "men") or i["catalogSlug"].startswith(catalog))]
+               and (catalog in (None, "men") or i["catalogSlug"].startswith(catalog))
+               and (not conditions or i["condition"] in conditions)]
         return sorted(out, key=lambda i: i["createdAt"], reverse=True), False
+
+    def products_multi(self, variants, *, brands, catalog, **k):
+        self.requests_made += 1          # один HTTP-запит на всі варіанти
+        self.variants_seen = variants
+        return [self.products(brands=brands, catalog=catalog, conditions=c) for c, _ in variants]
 
     def details(self, pid):
         self.requests_made += 1
@@ -222,3 +227,27 @@ class ConfigTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SellerTest(unittest.TestCase):
+    def rule(self, seller, cond=3, mats=()):
+        return rules.Rule(label="x", brands={1: "B"}, seller=seller, min_condition=cond, materials=list(mats))
+
+    def test_variants(self):
+        self.assertEqual(self.rule("any").variants(), [([1, 2, 3], [])])
+        self.assertEqual(self.rule("private").variants(), [([1, 2, 3], [rules.SELLER_PRIVATE])])
+        self.assertEqual(self.rule("private_new", mats=[1712]).variants(),
+                         [([2, 3], [1712]), ([1], [1712, rules.SELLER_PRIVATE])])
+        self.assertEqual(self.rule("private_new", cond=None).variants(),
+                         [([2, 3, 4, 5], []), ([1], [rules.SELLER_PRIVATE])])
+        self.assertEqual(self.rule("private_new", cond=1).variants(), [([1], [rules.SELLER_PRIVATE])])
+
+    def test_key_and_config(self):
+        self.assertEqual(self.rule("any").query_key(), rules.Rule(label="x", brands={1: "B"}, min_condition=3).query_key())
+        self.assertNotEqual(self.rule("any").query_key(), self.rule("private_new").query_key())
+        cfg = rules.loads("defaults: {seller: нові}\nbrands:\n  - {name: COS, id: 1}\n  - {name: A, id: 2, seller: any}\n")
+        by = {r.label: r for r in cfg.rules}
+        self.assertEqual((by["COS"].seller, by["A"].seller), ("private_new", "any"))
+        with self.assertRaises(rules.ConfigError):
+            rules.loads("defaults: {seller: дехто}\nbrands:\n  - {name: COS, id: 1}\n")
+

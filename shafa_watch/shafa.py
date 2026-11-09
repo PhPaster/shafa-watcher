@@ -45,6 +45,9 @@ query WEB_CatalogProducts($first: Int!, $pageNum: Int!, $catalogSlug: String, $b
 }
 """
 
+NODE_FIELDS = """id url name thumbnail price oldPrice discountPercent statusTitle condition createdAt isNew
+      catalogSlug brand { id name } sizes { id name }"""
+
 # Картка товару: опис, усі фото, стан текстом, характеристики (зокрема «Матеріал»).
 DETAILS_QUERY = """
 query WEB_ProductDetailsPageProduct($productId: Int!) {
@@ -142,6 +145,49 @@ class Shafa:
         data = self._post("WEB_CatalogProducts", query, v)
         p = data["products"]
         return [e["node"] for e in p["edges"]], bool(p["pageInfo"]["hasNextPage"])
+
+    def products_multi(self, variants: list[tuple[list[int], list[int]]], *, brands: list[int] | None,
+                       catalog: str | None = None, sizes: list[int] | None = None, price_to: int | None = None,
+                       price_from: int | None = None, first: int = 100, page: int = 1,
+                       search_text: str | None = None) -> list[tuple[list[dict], bool]]:
+        """Кілька варіантів (стани, характеристики) з однаковими рештою фільтрів — одним HTTP-запитом
+        через аліаси GraphQL (v0, v1 …). Повертає [(товари, є_ще_сторінка)] у порядку variants."""
+        v: dict = {"first": first, "pageNum": page, "orderBy": "4"}
+        decl = ["$first: Int!", "$pageNum: Int!", "$orderBy: String", "$catalogSlug: String", "$brands: [Int]",
+                "$sizes: [Int!]", "$priceTo: Int", "$priceFrom: Int"]
+        common = ("first: $first, pageNum: $pageNum, orderBy: $orderBy, sizes: $sizes, priceTo: $priceTo, "
+                  "priceFrom: $priceFrom, catalogSlug: $catalogSlug, brands: $brands")
+        if brands:
+            v["brands"] = brands
+        if catalog:
+            v["catalogSlug"] = catalog
+        if sizes:
+            v["sizes"] = sizes
+        if price_to:
+            v["priceTo"] = int(price_to)
+        if price_from:
+            v["priceFrom"] = int(price_from)
+        if search_text:
+            v["searchText"] = search_text
+            decl.append("$searchText: String")
+            common += ", searchText: $searchText"
+        parts = []
+        for i, (conds, chars) in enumerate(variants):
+            decl += [f"$conditions{i}: [Int]", f"$characteristics{i}: [Int!]"]
+            if conds:
+                v[f"conditions{i}"] = conds
+            if chars:
+                v[f"characteristics{i}"] = chars
+            parts.append(f"v{i}: products({common}, condition: $conditions{i}, "
+                         f"characteristics: $characteristics{i}) {{\n    edges {{ node {{\n      {NODE_FIELDS}\n    }} }}"
+                         f"\n    pageInfo {{ hasNextPage total }}\n  }}")
+        query = f"query WEB_CatalogProducts({', '.join(decl)}) {{\n  " + "\n  ".join(parts) + "\n}"
+        data = self._post("WEB_CatalogProducts", query, v)
+        out = []
+        for i in range(len(variants)):
+            p = data[f"v{i}"]
+            out.append(([e["node"] for e in p["edges"]], bool(p["pageInfo"]["hasNextPage"])))
+        return out
 
     def find_brands(self, name: str, first: int = 20) -> list[dict]:
         """Пошук бренду за підрядком назви (запит фільтра брендів сайту, без урахування діакритики).

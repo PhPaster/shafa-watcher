@@ -4,7 +4,7 @@
 getUpdates, застосовує команди, перевіряє, що конфіг валідний, записує brands.yaml (коментарі зберігаються)
 і відповідає в чат. Воркфлоу потім комітить brands.yaml у репозиторій. Команди приймаються лише з TG_CHAT.
 
-Команди: /help /status /brands [текст] /add /remove /off /on /condition /sizes /cancel
+Команди: /help /status /brands [текст] /add /remove /off /on /condition /seller /sizes /cancel
 """
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ COMMANDS = [
     ("off", "Призупинити бренд: /off COS"),
     ("on", "Увімкнути бренд знову: /on COS"),
     ("condition", "Мінімальний стан: /condition 3 (або /condition COS 2)"),
+    ("seller", "Продавці: нові речі лише від приватних осіб"),
     ("sizes", "Розміри: /sizes одяг L XL"),
     ("materials", "Матеріали категорії: /materials светри: вовна, кашемір"),
     ("prefer", "Пріоритетні матеріали: /prefer взуття: шкіра, замша"),
@@ -50,6 +51,12 @@ HELP = """<b>Керування Shafa Watcher</b>
 /condition 2 — для всіх брендів
 /condition COS 1 — лише для бренду · /condition COS default — як у всіх
 
+<b>Продавці</b> (на Shafa «Приватний» або «Бізнес та інші»)
+/seller — показати кнопки
+/seller нові — нові речі лише від приватних осіб, вживані від усіх (рекомендовано: без китайських реплік)
+/seller приватні — лише приватні особи · /seller усі — без фільтра
+/seller COS усі — лише для бренду · /seller COS default — як у всіх
+
 <b>Розміри</b> (для всіх брендів)
 /sizes — показати
 /sizes одяг L XL
@@ -70,7 +77,7 @@ HELP = """<b>Керування Shafa Watcher</b>
 
 Категорії: джинси, штани, брюки, шорти, футболки, поло, сорочки, светри, кардигани, худі, лонгсліви, кофти, верхній одяг, куртки, пуховики, пальто, піджаки, костюми, взуття, кросівки, черевики, туфлі…
 
-Після зміни розмірів чи стану перший прохід лише запам'ятовує поточні товари (без спаму)."""
+Після зміни розмірів, стану чи продавців перший прохід лише запам'ятовує поточні товари (без спаму)."""
 
 
 HELP = HELP.replace("{mats}", ", ".join(rules.MATERIALS))
@@ -231,6 +238,8 @@ class Bot:
             parts.append(esc(", ".join(map(str, b["categories"]))))
         if b.get("min_condition"):
             parts.append(f"стан ≤{b['min_condition']}")
+        if b.get("seller"):
+            parts.append(f"продавці: {self._seller_short(b['seller'])}")
         if b.get("max_price"):
             parts.append(f"до {b['max_price']} грн")
         if b.get("searches"):
@@ -255,6 +264,7 @@ class Bot:
         lines = ["<b>Налаштування</b>",
                  f"Брендів: {len(self.brands)} (активних {on}), пошуків без бренду: {len(self.doc.get('searches') or [])}",
                  f"Стан: {self._cond_text(cond)}",
+                 f"Продавці: {self._seller_text(d.get('seller'))}",
                  "Розміри:"] + [f"  {g}: {', '.join(map(str, v)) if v else '—'}" for g, v in self._sizes().items()]
         self._reply("\n".join(esc(x) if i else x for i, x in enumerate(lines)))
 
@@ -350,6 +360,8 @@ class Bot:
             self._add(name, int(val), pend.get("cats") or [])
         elif kind == "cond":
             self.cmd_condition(val)
+        elif kind == "seller":
+            self.cmd_seller(val)
 
     def cmd_remove(self, arg: str) -> None:
         i = self._one(arg, "remove")
@@ -411,6 +423,62 @@ class Bot:
         if self._commit(f"стан для всіх → {value or 'будь-який'}"):
             self._reply(f"✅ Стан для всіх брендів: {esc(self._cond_text(value))}. "
                         f"Бренди з власним станом не змінено.")
+
+    @staticmethod
+    def _seller_text(v) -> str:
+        mode = rules.SELLER_ALIASES.get(str(v).strip().lower(), "any") if v else "any"
+        return rules.SELLER_MODES[mode]
+
+    @staticmethod
+    def _seller_short(v) -> str:
+        return {"private_new": "нові лише приватні", "private": "лише приватні", "any": "усі"}.get(
+            rules.SELLER_ALIASES.get(str(v).strip().lower(), ""), str(v))
+
+    def cmd_seller(self, arg: str) -> None:
+        if not arg:
+            cur = (self.doc.get("defaults") or {}).get("seller")
+            self._reply(f"Зараз: {esc(self._seller_text(cur))}. Обери для всіх брендів:",
+                        [[("Нові — лише приватні ✅", "seller:private_new")],
+                         [("Лише приватні", "seller:private")], [("Усі продавці", "seller:any")]])
+            return
+        a = arg.strip()
+        if a.lower() in rules.SELLER_ALIASES:
+            who, val = None, a.lower()
+        elif " " in a:
+            who, val = a.rsplit(None, 1)
+            val = val.lower()
+        else:
+            who, val = None, a.lower()
+        if val == "default":
+            if not who:
+                self._reply("Формат: /seller нові · /seller COS усі · /seller COS default")
+                return
+            mode = None
+        elif val in rules.SELLER_ALIASES:
+            mode = rules.SELLER_ALIASES[val]
+        else:
+            self._reply("Формат: /seller нові · /seller приватні · /seller усі · /seller COS default")
+            return
+        if who:
+            i = self._one(who, "seller")
+            if i is None:
+                return
+            b = self.brands[i]
+            if mode is None:
+                b.pop("seller", None)
+            else:
+                b["seller"] = mode
+            if self._commit(f"продавці {b['name']} → {mode or 'як у всіх'}"):
+                self._reply(f"✅ {esc(b['name'])}: {esc(rules.SELLER_MODES[mode]) if mode else 'продавці як у всіх'}.")
+            return
+        d = self.doc.setdefault("defaults", CommentedMap())
+        if mode == "any":
+            d.pop("seller", None)
+        else:
+            d["seller"] = mode
+        if self._commit(f"продавці для всіх → {mode}"):
+            self._reply(f"✅ Продавці для всіх брендів: {esc(rules.SELLER_MODES[mode])}. "
+                        f"Бренди з власним налаштуванням не змінено. Перший прохід лише запам'ятає поточні товари.")
 
     def _sizes(self) -> dict:
         prof = self.doc.get("my_sizes")

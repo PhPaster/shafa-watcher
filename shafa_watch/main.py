@@ -119,15 +119,23 @@ def fetch_group(shafa: Shafa, g: rules.Group, state: State, st: dict, demo: bool
     per_page = int(st.get("items_per_query", 100))
     max_pages = int(st.get("max_pages", 3))
     ready = state.any_ready(g.key, g.brand_ids) and not demo
+    variants = r.variants()            # напр. «вживані від усіх» + «нові від приватних» — один HTTP-запит
+    active = list(range(len(variants)))
     items: list[dict] = []
+    seen_ids: set[int] = set()
     for page in range(1, max_pages + 1):
-        batch, has_next = shafa.products(
-            brands=g.brand_ids or None, catalog=r.catalog, sizes=r.sizes, conditions=r.conditions,
-            price_to=r.max_price, price_from=r.min_price, characteristics=r.materials,
-            first=per_page, page=page, search_text=r.text)
-        items += batch
-        # Далі гортаємо лише якщо вся сторінка нова (великий потік між запусками).
-        if not (ready and has_next and batch and all(not state.is_seen(i["id"]) for i in batch)):
+        res = shafa.products_multi(
+            [variants[i] for i in active], brands=g.brand_ids or None, catalog=r.catalog, sizes=r.sizes,
+            price_to=r.max_price, price_from=r.min_price, first=per_page, page=page, search_text=r.text)
+        nxt = []
+        for i, (batch, has_next) in zip(active, res):
+            items += [x for x in batch if x["id"] not in seen_ids]
+            seen_ids.update(x["id"] for x in batch)
+            # Далі гортаємо лише якщо вся сторінка нова (великий потік між запусками).
+            if ready and has_next and batch and all(not state.is_seen(x["id"]) for x in batch):
+                nxt.append(i)
+        active = nxt
+        if not active:
             break
     return items
 

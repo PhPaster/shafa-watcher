@@ -121,6 +121,21 @@ class BotTest(unittest.TestCase):
         self.assertIsNone(by["COS"].min_condition)
         self.assertIsNone(by["ARKET"].min_condition)
 
+    def test_seller_global_brand_and_buttons(self):
+        tg, _, cfg = self.run_bot([msg(1, "/seller нові"), msg(2, "/seller COS усі"), msg(3, "/seller")])
+        by = {r.label: r for r in cfg.rules}
+        self.assertEqual(by["ARKET"].seller, "private_new")
+        self.assertEqual(by["COS"].seller, "any")
+        self.assertIn("reply_markup", tg.sent[-1])
+        _, _, cfg = self.run_bot([cb(4, "seller:private"), msg(5, "/seller COS default"),
+                                  msg(6, "/seller нові приватні")])
+        by = {r.label: r for r in cfg.rules}
+        self.assertEqual(by["COS"].seller, "private_new")
+        self.assertEqual(by["ARKET"].seller, "private_new")
+        tg, changes, _ = self.run_bot([msg(7, "/seller COS дехто")])
+        self.assertFalse(changes)
+        self.assertIn("Формат", tg.sent[-1]["text"])
+
     def test_sizes(self):
         _, changes, cfg = self.run_bot([msg(1, "/sizes взуття 45 45,5 46"), msg(2, "/sizes штани W34 W36"),
                                         msg(3, "/sizes одяг -")])
