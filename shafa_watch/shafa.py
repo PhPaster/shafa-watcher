@@ -115,11 +115,13 @@ class Shafa:
             return j["data"]
         raise last_err or ShafaError("невідома помилка")
 
-    def products(self, *, brands: list[int], catalog: str | None = None, sizes: list[int] | None = None,
+    def products(self, *, brands: list[int] | None, catalog: str | None = None, sizes: list[int] | None = None,
                  conditions: list[int] | None = None, price_to: int | None = None,
                  price_from: int | None = None, characteristics: list[int] | None = None,
                  first: int = 100, page: int = 1) -> tuple[list[dict], bool]:
-        v = {"first": first, "pageNum": page, "orderBy": "4", "brands": brands}
+        v = {"first": first, "pageNum": page, "orderBy": "4"}
+        if brands:
+            v["brands"] = brands
         if catalog:
             v["catalogSlug"] = catalog
         if sizes:

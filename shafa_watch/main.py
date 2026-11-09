@@ -26,10 +26,10 @@ def fmt_price(v) -> str:
     return f"{v:,.0f}".replace(",", " ")
 
 
-def build_caption(item: dict, d: dict | None, rule: rules.BrandRule) -> tuple[str, list[str], str]:
+def build_caption(item: dict, d: dict | None, rule: rules.Rule) -> tuple[str, list[str], str]:
     url = absolute_url(item.get("url") or (d or {}).get("url") or f"/uk/item/{item['id']}")
     name = (d or {}).get("name") or item.get("name") or "Нова річ"
-    brand = ((d or {}).get("brand") or item.get("brand") or {}).get("name") or rule.name
+    brand = ((d or {}).get("brand") or item.get("brand") or {}).get("name") or next(iter(rule.brands.values()), "")
     sizes = [s.get("name") for s in ((d or {}).get("sizes") or item.get("sizes") or []) if s.get("name")]
     cond = ((d or {}).get("condition") or {}).get("name") or rules.CONDITIONS.get(item.get("condition"), "")
     price = (d or {}).get("price") or item.get("price")
@@ -42,12 +42,15 @@ def build_caption(item: dict, d: dict | None, rule: rules.BrandRule) -> tuple[st
         price_line += f"  <s>{fmt_price(old)} грн</s>"
         if disc:
             price_line += f" (−{int(disc)}%)"
-    lines = [f"🆕 <b>{esc(name)}</b>", f"🏷 {esc(brand)}" + (f" · розмір {esc(', '.join(sizes))}" if sizes else "")]
+    tag = " · ".join(x for x in (esc(brand), f"розмір {esc(', '.join(sizes))}" if sizes else "") if x)
+    lines = [f"🆕 <b>{esc(name)}</b>"] + ([f"🏷 {tag}"] if tag else [])
     if cond:
         lines.append(f"✨ Стан: {esc(cond)}")
     lines.append(price_line)
     if mats:
         lines.append(f"🧵 {esc(', '.join(mats))}")
+    if rule.brandless:
+        lines.append(f"🔎 {esc(rule.label)}")
     lines.append(f'🔗 <a href="{esc(url)}">{esc(url)}</a>')
     caption = "\n".join(lines)[:1024]
 
@@ -86,7 +89,7 @@ class Health:
     def count(self, key: str, n: int = 1) -> None:
         self.stats[key] = self.stats.get(key, 0) + n
 
-    def heartbeat(self, hour: int, n_brands: int, n_groups: int) -> None:
+    def heartbeat(self, hour: int, n_brands: int, n_rules: int, n_groups: int) -> None:
         now = dt.datetime.now(KYIV)
         today = now.date().isoformat()
         if now.hour < hour or self.h.get("heartbeat_date") == today:
@@ -97,7 +100,7 @@ class Health:
                 f"За добу: запусків {s.get('runs', 0)}, нових сповіщень {s.get('notified', 0)}, "
                 f"переглянуто нових id {s.get('new_ids', 0)}, запитів до Shafa {s.get('requests', 0)}, "
                 f"помилок {s.get('errors', 0)}.\n"
-                f"Брендів: {n_brands}, запитів за прохід: {n_groups}."
+                f"Брендів: {n_brands}, правил: {n_rules}, запитів за прохід: {n_groups}."
                 + (f"\nНайбільша пауза між запусками: {gap:.0f} хв." if gap else ""))
         try:
             self.tg.text(text)
@@ -105,6 +108,42 @@ class Health:
             self.stats.clear()
         except Exception as e:  # noqa: BLE001
             log.error("heartbeat не надіслано: %s", e)
+
+
+def fetch_group(shafa: Shafa, g: rules.Group, state: State, st: dict, demo: bool) -> list[dict]:
+    r = g.server
+    per_page = int(st.get("items_per_query", 100))
+    max_pages = int(st.get("max_pages", 3))
+    ready = state.any_ready(g.key, g.brand_ids) and not demo
+    items: list[dict] = []
+    for page in range(1, max_pages + 1):
+        batch, has_next = shafa.products(
+            brands=g.brand_ids or None, catalog=r.catalog, sizes=r.sizes, conditions=r.conditions,
+            price_to=r.max_price, price_from=r.min_price, characteristics=r.materials,
+            first=per_page, page=page)
+        items += batch
+        # Далі гортаємо лише якщо вся сторінка нова (великий потік між запусками).
+        if not (ready and has_next and batch and all(not state.is_seen(i["id"]) for i in batch)):
+            break
+    return items
+
+
+def demo_order(ids: list[int], found: dict, sources: dict) -> list[int]:
+    """Для демо — по черзі з кожного правила (найсвіжіші першими), щоб показати різні приклади."""
+    by_label: dict[str, list[int]] = {}
+    for pid in ids:
+        item = found[pid]
+        rule = next((r for g in sources[pid] for r in g.rules
+                     if r.matches_brand(item) and not rules.quick_check(item, r)), None)
+        if rule:
+            by_label.setdefault(rule.label, []).append(pid)
+    out: list[int] = []
+    queues = list(by_label.values())
+    while any(queues):
+        for q in queues:
+            if q:
+                out.append(q.pop(0))
+    return out
 
 
 def run(args) -> int:
@@ -116,106 +155,119 @@ def run(args) -> int:
     st = cfg.settings
     shafa = Shafa(min_delay=float(st.get("request_delay_sec", 1.5)))
     health = Health(state, tg)
-    by_id = cfg.by_id()
     groups = cfg.groups()
-    per_page = int(st.get("items_per_query", 100))
-    max_pages = int(st.get("max_pages", 3))
     photos_n = int(st.get("photos", 3))
 
     # пауза між запусками (GitHub cron може запізнюватися)
     last_run = state.health.get("last_run")
-    if last_run:
+    if last_run and not args.demo:
         gap = (time.time() - last_run) / 60
         state.stats["max_gap_min"] = max(state.stats.get("max_gap_min", 0), gap)
     health.count("runs")
 
+    # 1. Запити: кожна група — один запит (до 3 сторінок). Товар може прийти з кількох груп.
+    found: dict[int, dict] = {}
+    sources: dict[int, list[rules.Group]] = {}
+    ok_groups: list[rules.Group] = []
     failed = 0
-    notified = 0
-    demo_left = args.demo
     for g in groups:
-        ready = state.group_ready(g.key, g.brand_ids) and not args.demo
-        r = g.rule
-        items: list[dict] = []
         try:
-            for page in range(1, max_pages + 1):
-                batch, has_next = shafa.products(
-                    brands=g.brand_ids, catalog=r.section, sizes=r.sizes, conditions=r.conditions,
-                    price_to=r.max_price, price_from=r.min_price, characteristics=r.materials,
-                    first=per_page, page=page)
-                items += batch
-                # Далі гортаємо лише якщо вся сторінка нова (великий потік між запусками).
-                if not (ready and has_next and batch and all(not state.is_seen(i["id"]) for i in batch)):
-                    break
+            items = fetch_group(shafa, g, state, st, bool(args.demo))
         except ShafaError as e:
             failed += 1
             health.count("errors")
             fails = state.health.setdefault("group_fails", {})
-            fails[g.key] = fails.get(g.key, 0) + 1
-            log.error("група %s: %s", g.key, e)
+            fails[g.id] = fails.get(g.id, 0) + 1
+            log.error("група %s [%s]: %s", g.id, g.label(), e)
             if e.status in (403, 429):
                 health.alert("blocked", f"Shafa відповідає {e.status}. Можливе блокування IP раннера. "
                                         "Див. README → «Якщо Shafa блокує».")
-            elif fails[g.key] >= 3:
-                health.alert(f"group:{g.key}", f"запит для брендів {g.brand_ids} падає {fails[g.key]} рази поспіль: {e}")
+            elif fails[g.id] >= 3:
+                health.alert(f"group:{g.id}", f"запит [{g.label()}] падає {fails[g.id]} рази поспіль: {e}")
             continue
-        state.health.setdefault("group_fails", {})[g.key] = 0
-        health.resolve(f"group:{g.key}", f"запит для брендів {g.brand_ids} знову працює")
+        ok_groups.append(g)
+        state.health.setdefault("group_fails", {})[g.id] = 0
+        health.resolve(f"group:{g.id}", f"запит [{g.label()}] знову працює")
 
+        # «0 товарів N разів поспіль» підозріло лише для групи, яка раніше щось повертала:
+        # у нішевого бренду в моїх розмірах порожня видача — норма.
         empties = state.health.setdefault("group_empty", {})
+        nonempty = state.health.setdefault("group_nonempty", {})
         if not items:
-            empties[g.key] = empties.get(g.key, 0) + 1
-            if empties[g.key] >= int(st.get("empty_runs_alert", 12)):
-                health.alert(f"empty:{g.key}", f"для брендів {g.brand_ids} Shafa повертає 0 товарів "
-                                               f"{empties[g.key]} запусків поспіль. Перевір id і фільтри.")
+            empties[g.id] = empties.get(g.id, 0) + 1
+            if nonempty.get(g.id) and empties[g.id] >= int(st.get("empty_runs_alert", 12)):
+                health.alert(f"empty:{g.id}", f"для [{g.label()}] Shafa повертає 0 товарів "
+                                              f"{empties[g.id]} запусків поспіль. Перевір id і фільтри.")
         else:
-            empties[g.key] = 0
+            empties[g.id] = 0
+            nonempty[g.id] = True
+            health.resolve(f"empty:{g.id}", f"[{g.label()}] знову повертає товари")
+        n_new = sum(1 for i in items if not state.is_seen(i["id"]))
+        fresh = not state.any_ready(g.key, g.brand_ids)
+        log.info("група %s [%s]: отримано %d, нових %d%s", g.id, g.label(), len(items), n_new,
+                 " — перший прохід, лише запам'ятовую" if fresh and not args.demo else "")
+        for i in items:
+            found.setdefault(i["id"], i)
+            sources.setdefault(i["id"], []).append(g)
 
-        new = [i for i in items if not state.is_seen(i["id"])]
-        health.count("new_ids", len(new) if ready else 0)
-        log.info("група %s (%d брендів): отримано %d, нових %d%s", g.key, len(g.brand_ids), len(items),
-                 len(new), "" if ready or args.demo else " — перший прохід, лише запам'ятовую")
-        if not ready and not args.demo:
-            for i in items:
-                state.mark(i["id"])
-            state.set_group_ready(g.key, g.brand_ids)
+    # 2. Нові товари → правила груп, що їх повернули → фільтри → Telegram. Одна річ = одне повідомлення.
+    ids = [pid for pid in found if args.demo or not state.is_seen(pid)]
+    ids.sort(key=lambda pid: (found[pid].get("createdAt") or "", pid), reverse=bool(args.demo))
+    if args.demo:
+        ids = demo_order(ids, found, sources)
+    notified = 0
+    considered = 0
+    for pid in ids:
+        item = found[pid]
+        bid = (item.get("brand") or {}).get("id")
+        cands: list[rules.Rule] = []
+        for g in sources[pid]:
+            if args.demo or state.ready(g.key, bid if g.brand_ids else None):
+                cands += [r for r in g.rules if r.matches_brand(item) and r not in cands]
+        if not cands:   # перший прохід для бренду/групи — лише запам'ятати
+            if not args.demo:
+                state.mark(pid)
             continue
-
-        for item in (items if args.demo else reversed(new)):  # від старших до новіших
-            rule = by_id.get((item.get("brand") or {}).get("id"))
-            if not rule:
-                state.mark(item["id"])
-                continue
-            reason = rules.quick_check(item, rule)
-            d = None
-            if not reason:
-                try:
-                    d = shafa.details(item["id"])
-                except ShafaError as e:
-                    log.warning("картка %s недоступна: %s", item["id"], e)
-                reason = rules.detail_check(item, d, rule)
-            if reason:
-                log.info("  пропуск %s «%s»: %s", item["id"], item.get("name"), reason)
-                if not args.demo:
-                    state.mark(item["id"])
-                continue
-            caption, photos, url = build_caption(item, d, rule)
+        considered += 1
+        passing, reasons = [], []
+        for r in cands:
+            reason = rules.quick_check(item, r)
+            (reasons if reason else passing).append(reason or r)
+        d = None
+        if passing:
             try:
-                tg.listing(caption, photos[:photos_n], url)
-            except Exception as e:  # noqa: BLE001
-                # Не позначаємо як бачене — спробуємо наступного запуску.
-                log.error("Telegram: %s", e)
-                health.alert("telegram", f"не вдалося надіслати повідомлення: {e}")
-                continue
-            notified += 1
-            if args.demo:
-                demo_left -= 1
-                if demo_left <= 0:
-                    break
-            else:
-                state.mark(item["id"])
-        if args.demo and demo_left <= 0:
-            break
+                d = shafa.details(pid)
+            except ShafaError as e:
+                log.warning("картка %s недоступна: %s", pid, e)
+            ok = []
+            for r in passing:
+                reason = rules.detail_check(item, d, r)
+                (reasons if reason else ok).append(reason or r)
+            passing = ok
+        if not passing:
+            log.info("  пропуск %s «%s»: %s", pid, item.get("name"), "; ".join(dict.fromkeys(reasons)))
+            if not args.demo:
+                state.mark(pid)
+            continue
+        rule = passing[0]
+        caption, photos, url = build_caption(item, d, rule)
+        try:
+            tg.listing(caption, photos[:photos_n], url)
+        except Exception as e:  # noqa: BLE001
+            # Не позначаємо як бачене — спробуємо наступного запуску.
+            log.error("Telegram: %s", e)
+            health.alert("telegram", f"не вдалося надіслати повідомлення: {e}")
+            continue
+        notified += 1
+        log.info("  ✉ %s «%s» [%s]", pid, item.get("name"), rule.label)
+        if args.demo:
+            if notified >= args.demo:
+                break
+        else:
+            state.mark(pid)
+            health.resolve("telegram", "Telegram знову приймає повідомлення")
 
+    health.count("new_ids", considered)
     health.count("notified", notified)
     health.count("requests", shafa.requests_made)
     if groups and failed == len(groups):
@@ -225,12 +277,18 @@ def run(args) -> int:
         health.resolve("blocked", "Shafa знову відповідає нормально")
 
     if not args.demo:
+        for g in ok_groups:
+            state.set_ready(g.key, g.brand_ids)
         state.health["last_run"] = time.time()
-        health.heartbeat(int(st.get("heartbeat_hour_kyiv", 9)), len(cfg.enabled), len(groups))
-        state.prune({g.key for g in groups})
+        health.heartbeat(int(st.get("heartbeat_hour_kyiv", 9)), cfg.brand_count, len(cfg.enabled), len(groups))
+        active: dict[str, set[int]] = {}
+        for g in groups:
+            active.setdefault(g.key, set()).update(g.brand_ids)
+        state.prune(set(active))
+        state.prune_brands(active)
         state.save()
-    log.info("готово: груп %d, помилок %d, надіслано %d, запитів до Shafa %d",
-             len(groups), failed, notified, shafa.requests_made)
+    log.info("готово: груп %d, помилок %d, розглянуто нових %d, надіслано %d, запитів до Shafa %d",
+             len(groups), failed, considered, notified, shafa.requests_made)
     return 1 if groups and failed == len(groups) else 0
 
 
