@@ -293,6 +293,16 @@ def run(args) -> int:
         health.resolve("all_failed", "запити до Shafa знову працюють")
         health.resolve("blocked", "Shafa знову відповідає нормально")
 
+    if not args.demo and os.getenv("GITHUB_EVENT_NAME") == "schedule" and not state.health.get("schedule_started"):
+        try:
+            tg.text(f"🚀 <b>Shafa Watcher запущено</b> за розкладом (кожні 10 хв).\n"
+                    f"Брендів: {cfg.brand_count}, правил: {len(cfg.enabled)}, запитів за прохід: {len(groups)}.\n"
+                    f"Перший прохід для кожного бренду лише запам'ятовує поточні речі; далі приходитимуть нові. "
+                    f"Звіт «я працюю» — щодня після {int(st.get('heartbeat_hour_kyiv', 9))}:00. /help — команди.")
+            state.health["schedule_started"] = time.time()
+        except Exception as e:  # noqa: BLE001
+            log.error("стартове повідомлення: %s", e)
+
     if not args.demo:
         for g in ok_groups:
             state.set_ready(g.key, g.brand_ids)
