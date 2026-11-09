@@ -104,6 +104,8 @@ class Bot:
         except Exception as e:  # noqa: BLE001
             log.error("getUpdates: %s", e)
             return []
+        if updates:
+            log.info("бот: нових повідомлень %d", len(updates))
         for u in updates:
             self.state["offset"] = u["update_id"] + 1
             try:
@@ -135,6 +137,7 @@ class Bot:
                 self.tg.call("answerCallbackQuery", {"callback_query_id": cq["id"]}, with_chat=False)
             except Exception:  # noqa: BLE001
                 pass
+            log.info("бот: кнопка %s", cq.get("data"))
             self._callback(cq.get("data") or "")
             return
         msg = u.get("message") or {}
@@ -148,6 +151,7 @@ class Bot:
             return
         cmd, _, arg = text.partition(" ")
         cmd = cmd[1:].split("@")[0].lower()
+        log.info("бот: /%s %s", cmd, arg[:60])
         handler = getattr(self, f"cmd_{cmd}", None)
         if not handler:
             self._reply(f"Невідома команда /{esc(cmd)}. /help — список.")
