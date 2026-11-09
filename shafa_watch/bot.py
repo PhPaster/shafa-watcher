@@ -94,6 +94,12 @@ class Bot:
         """Обробити нові повідомлення. Повертає список змін (для коміту), порожній — нічого не змінилося."""
         if self.tg.dry_run:
             return []
+        try:
+            me = self.tg.call("getMe", {}, with_chat=False).get("result") or {}
+            log.info("бот: @%s, очікую повідомлення з TG_CHAT (%d символів)", me.get("username"),
+                     len(str(self.tg.chat_id).strip()))
+        except Exception as e:  # noqa: BLE001
+            log.error("getMe: %s", e)
         self._ensure_commands()
         offset = self.state.get("offset")
         params = {"timeout": 0, "allowed_updates": ["message", "callback_query"]}
@@ -131,7 +137,7 @@ class Bot:
     def _handle(self, u: dict) -> None:
         if "callback_query" in u:
             cq = u["callback_query"]
-            if str(cq.get("message", {}).get("chat", {}).get("id")) != str(self.tg.chat_id):
+            if str(cq.get("message", {}).get("chat", {}).get("id")) != str(self.tg.chat_id).strip():
                 return
             try:
                 self.tg.call("answerCallbackQuery", {"callback_query_id": cq["id"]}, with_chat=False)
@@ -141,7 +147,9 @@ class Bot:
             self._callback(cq.get("data") or "")
             return
         msg = u.get("message") or {}
-        if str(msg.get("chat", {}).get("id")) != str(self.tg.chat_id):
+        log.info("бот: повідомлення %s, чат збігається з TG_CHAT: %s", u.get("update_id"),
+                 str(msg.get("chat", {}).get("id")) == str(self.tg.chat_id).strip())
+        if str(msg.get("chat", {}).get("id")) != str(self.tg.chat_id).strip():
             log.warning("повідомлення з чужого чату %s проігноровано", msg.get("chat", {}).get("id"))
             return
         text = (msg.get("text") or "").strip()

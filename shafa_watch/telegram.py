@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 class Telegram:
     def __init__(self, token: str | None, chat_id: str | None, dry_run: bool = False):
         self.token = token
-        self.chat_id = chat_id
+        self.chat_id = (chat_id or "").strip() or None
         self.dry_run = dry_run or not (token and chat_id)
         self.sent = 0
 
