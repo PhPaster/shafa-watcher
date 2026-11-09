@@ -1,61 +1,3275 @@
-# База брендів Shafa Watcher. Додати бренд = додати блок у `brands`. Код міняти не треба.
-# Бренд без id → python tools/lookup.py fill (підставить id сам). Категорії: python tools/lookup.py categories
+# База брендів Shafa Watcher. Згенеровано з data/brand_survey.json (опитування 9.11.2026) і списку
+# «Бренди для моніторингу Shafa / OLX». Далі редагуй тут або командами бота (/add, /remove, /off…).
+# Бренд без id → python tools/lookup.py fill. Категорії: python tools/lookup.py categories
 
 settings:
-  items_per_query: 100        # скільки найновіших товарів брати за один запит (сервер приймає до 500)
-  max_pages: 3                # догортати, якщо вся сторінка нова (великий потік)
+  items_per_query: 100        # найновіших товарів за запит (сервер приймає до 500)
+  max_pages: 3                # догортати, якщо вся сторінка нова
   request_delay_sec: 1.5      # пауза між запитами до Shafa
-  photos: 3                   # 1 = фото з кнопкою «Відкрити»; 2–10 = альбом
-  heartbeat_hour_kyiv: 9      # щоденний звіт «я працюю» після цієї години за Києвом
-  empty_runs_alert: 12        # алерт, якщо група, що раніше мала товари, повертає 0 стільки запусків поспіль
-  max_brands_per_query: 50
+  photos: 3                   # 1 = фото з кнопкою; 2–10 = альбом
+  heartbeat_hour_kyiv: 9      # щоденний звіт «я працюю» після цієї години
+  empty_runs_alert: 12        # алерт, якщо група, що мала товари, повертає 0 стільки запусків поспіль
+  max_brands_per_query: 100   # перевірено: сервер приймає 100 id брендів в одному запиті
+  max_slow_requests_per_run: 6   # скільки запитів повільних пакетів можна за один прохід (решта — наступного)
+  # Пакети: як часто опитувати (хвилини). Воркфлоу запускається кожні 10 хв.
+  packages:
+    гарячі: 10
+    звичайні: 10
+    рідкісні: 30
+    тихі: 180
+    не мої розміри: 1440
+    сплячі: 10080
+    текст щодня: 1440
+    текст щотижня: 10080
 
-# Профіль розмірів: діє для всіх брендів і пошуків (серверний фільтр, групи об'єднуються через АБО).
-# одяг: XS S M L XL XXL 3XL… (або 48 = L) · штани: W28…W50 · взуття: 36…50, з половинками (42.5)
+# Профіль розмірів: діє для всіх брендів і пошуків (серверний фільтр).
 my_sizes:
   одяг: [L, XL]
   штани: [W34, W36, W38]       # пояс від ~45 см (напівобхват)
   взуття: [45, 45.5, 46]       # устілка ~29 см
 
-# Матеріали за категоріями (для всіх брендів і пошуків). Шукаю в назві, описі й полі «Матеріал».
-# only — лише ці матеріали; prefer — нічого не відсіює, збіг приходить зі ⭐ і звуком, решта тихо.
-# Матеріали: вовна, кашемір, альпака, ангора, мохер, верблюжа вовна, шовк, льон, бавовна, шкіра, замша, нубук…
+# Мірки з опису: якщо продавець їх указав і вони не підходять — річ відсіюється. Не вказав — проходить.
+measurements:
+  waist_half_min: 45           # пояс (напівобхват), см; повний обхват ділиться на 2
+  length_min: 110              # довжина штанів, см
+  inseam_min: 80               # довжина по внутрішньому шву, см (L32 ≈ 81 см)
+  insole: [28.5, 30]           # устілка взуття, см
+
+# Матеріали за категоріями (для всіх брендів і пошуків): only — лише такі; prefer — ⭐ і звук, решта тихо.
 category_materials:
   светри: {only: [вовна, кашемір, альпака, ангора]}
   взуття: {prefer: [шкіра, замша, нубук]}
 
 # За замовчуванням для всіх брендів і пошуків (кожен може перевизначити).
 defaults:
-  section: men                # men (словники розмірів і категорій є лише для men)
+  section: men
   min_condition: 3            # 1 Новий, 2 Ідеальний, 3 Дуже хороший, 4 Хороший, 5 Задовільний (3 = «3 і краще»)
   max_age_hours: 72           # ігнорувати «підняті» оголошення, створені раніше
+  package: звичайні           # пакет для нових брендів (/add)
+  # reseller_filter: true     # за замовчуванням: відсіювати «нові s-xl», репліки, опт
 
-# ПРИКЛАДИ (розділ 10.3 біблії). Заміни на свої бренди й правила.
 brands:
-  - name: Kapital
-    id: 50311
-    categories: [джинси]
 
-  - name: COS
-    id: 1956
-    categories: [джинси, футболки, светри]
-    max_price: 2500
-
-  - name: ARKET               # без categories = усе в моїх розмірах
-    id: 45928
-
-  - name: Visvim
-    id: 64003
-    searches:                 # винятки: кілька окремих пошуків для одного бренду
-      - name: взуття
+  # ===== гарячі: кожні 10 хв — 55 =====
+  - name: "Alpha Industries"   # вінтажні M-65 і N-3B; уникати сучасних модних серій з нашивками
+    id: 44342
+    package: гарячі
+    categories: [верхній одяг]
+    title_include: "m-?65|n-?3b|vintage|вінтаж|made in usa"
+  - name: "AMI Paris"   # вовняні пальта, широкі брюки, сорочки, трикотаж; уникати підробок з великим серцем
+    id: 46858
+    package: гарячі
+    categories: [верхній одяг, брюки, сорочки, светри]
+  - name: "Arc'teryx"   # Beta, Alpha, Thorium, Cerium
+    id: 45282
+    package: гарячі
+    categories: [верхній одяг]
+  - name: "Asics"   # кросівки
+    id: 3966
+    package: гарячі
+    categories: [взуття]
+  - name: "Barbour"   # вощені куртки Bedale і Beaufort, стьобані куртки, светри, вельветові сорочки, шарфи
+    id: 9602
+    package: гарячі
+    categories: [верхній одяг, светри, сорочки]
+  - name: "Brunello Cucinelli"   # кашемір, замшеві куртки, лляні брюки, сорочки
+    id: 44426
+    package: гарячі
+    categories: [светри, верхній одяг, брюки, сорочки]
+  - name: "Burberry"   # вінтажні тренчі Kensington і Westminster, пальта; без логоманії
+    id: 194
+    package: гарячі
+    categories: [верхній одяг]
+  - name: "C&A"   # варто дивитися лише вінтажні вовняні пальта й твідові піджаки лінійок Westbury і Canda 70–80-х
+    id: 22
+    package: гарячі
+    categories: [верхній одяг, піджаки]
+    title_include: "westbury|canda"
+  - name: "C.P. Company"   # верхній одяг, трикотаж
+    id: 45014
+    package: гарячі
+    categories: [верхній одяг, светри]
+  - name: "Calvin Klein"
+    id: 197
+    package: гарячі
+    searches:
+      - name: "Calvin Klein Collection"   # пальта, піджаки, трикотаж, сорочки
+        title_include: "calvin klein collection|ck collection"
+        categories: [верхній одяг, піджаки, светри, сорочки]
+  - name: "Canada Goose"   # пуховики, парки
+    id: 7840
+    package: гарячі
+    categories: [верхній одяг]
+  - name: "Carhartt"   # куртки Detroit і Chore, штани Double Knee, жилети, худі
+    id: 44683
+    package: гарячі
+    categories: [сорочки, верхній одяг, штани, худі]
+  - name: "Carhartt WIP"   # робочі куртки, штани, сорочки, худі
+    id: 48030
+    package: гарячі
+    categories: [верхній одяг, штани, сорочки, худі]
+  - name: "Champion"
+    id: 4982
+    package: гарячі
+    searches:
+      - name: "Champion Reverse Weave"   # світшоти, худі
+        title_include: "reverse weave"
+        categories: [худі]
+  - name: "Charles Tyrwhitt"   # сорочки, лляні сорочки, чінос, меринос
+    id: 44434
+    package: гарячі
+    categories: [сорочки, брюки, светри]
+  - name: "Clarks"
+    id: 746
+    package: гарячі
+    searches:
+      - name: "Clarks Originals"   # Desert Boot, Wallabee, Desert Trek
+        title_include: "desert|wallabee|originals"
         categories: [взуття]
-        sizes: {взуття: [42.5, 43]}   # замінює лише взуття в профілі
-      - categories: [джинси, сорочки]
+  - name: "COS"   # вовняні пальта, кашемір, меринос, лляні сорочки, лляні брюки, брюки вільного крою
+    id: 1956
+    package: гарячі
+    categories: [верхній одяг, светри, сорочки, брюки]
+  - name: "Descente"
+    id: 54096
+    package: гарячі
+    searches:
+      - name: "Descente Allterrain"   # пуховики Mizusawa
+        title_include: "allterrain|mizusawa"
+        categories: [верхній одяг]
+  - name: "Diadora"
+    id: 2738
+    package: гарячі
+    searches:
+      - name: "Diadora Heritage"   # кросівки
+        title_include: "heritage|made in italy"
+        categories: [взуття]
+  - name: "Dickies"   # 874, Double Knee; вінтаж Made in USA
+    id: 11718
+    package: гарячі
+    categories: [штани, брюки]
+  - name: "Dior Homme / Christian Dior Monsieur"   # піджаки, костюми, шовкові сорочки, денім · вінтажні шовкові сорочки, краватки
+    id: 1474
+    package: гарячі
+    categories: [піджаки, костюми, сорочки, джинси]
+  - name: "Dr. Martens"
+    id: 557
+    package: гарячі
+    searches:
+      - name: "Dr. Martens Made in England"   # дербі, черевики
+        title_include: "made in england|vintage|англі"
+        categories: [взуття]
+  - name: "Ecco"   # дербі, черевики, кросівки
+    id: 493
+    package: гарячі
+    categories: [взуття]
+  - name: "Ermenegildo Zegna"   # костюми, піджаки, кашемір, лляні й шовкові сорочки, шарфи, краватки
+    id: 44702
+    package: гарячі
+    categories: [костюми, піджаки, светри, сорочки]
+  - name: "Fred Perry"   # поло, трикотаж, Harrington
+    id: 2696
+    package: гарячі
+    categories: [поло, светри, верхній одяг]
+  - name: "Gant"   # оксфордські сорочки, Gant Rugger, твідові блейзери, пальта; уникати великого щита на грудях
+    id: 2850
+    package: гарячі
+    categories: [сорочки, піджаки, верхній одяг]
+  - name: "Helly Hansen"   # верхній одяг, аутдор
+    id: 5956
+    package: гарячі
+    categories: [верхній одяг]
+  - name: "Hugo Boss"   # Boss Selection і Boss Tailored: пальта, костюми, кашемір; уникати футболок і худі з лого
+    id: 324
+    package: гарячі
+    categories: [верхній одяг, костюми, піджаки, светри]
+  - name: "Lacoste"   # поло, кардигани, пуловери, вінтаж Izod Lacoste, кросівки
+    id: 84
+    package: гарячі
+    categories: [поло, светри, взуття]
+  - name: "Lee"
+    id: 83
+    package: гарячі
+    searches:
+      - name: "Lee 101"   # селвідж, Rider, Storm Rider, Western
+        title_include: "\\b101\\b|rider"
+        categories: [джинси]
+  - name: "Levi's"
+    id: 82
+    package: гарячі
+    searches:
+      - name: "Levi's Vintage Clothing"   # 501XX, Type I/II/III
+        title_include: "\\blvc\\b|vintage clothing|big\\s*e\\b|501xx"
+        categories: [джинси]
+      - name: "Levi's Made & Crafted"   # денім, верхній одяг
+        title_include: "made\\s*(&|and)\\s*crafted|\\blmc\\b"
+        categories: [джинси, верхній одяг]
+  - name: "Loro Piana"   # кашемір, Storm System, лляні сорочки, лляні брюки, трикотаж
+    id: 45552
+    package: гарячі
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Lowa"   # трекінгові черевики
+    id: 19820
+    package: гарячі
+    categories: [взуття]
+  - name: "Lyle & Scott"   # вінтажний ламбсвул і кашемір, жилети
+    id: 44429
+    package: гарячі
+    categories: [светри, верхній одяг]
+  - name: "Mammut"   # аутдор-верхній одяг
+    id: 44977
+    package: гарячі
+    categories: [верхній одяг]
+  - name: "Marc O'Polo"   # лляні, фланелеві й вельветові сорочки, светри, кардигани, чінос, замшеві куртки
+    id: 1482
+    package: гарячі
+    categories: [сорочки, светри, брюки, верхній одяг]
+  - name: "Massimo Dutti"   # Limited Edition і Studio: замша, пальта, лляні сорочки, брюки
+    id: 595
+    package: гарячі
+    categories: [верхній одяг, сорочки, брюки]
+  - name: "Moncler"   # пуховики
+    id: 1102
+    package: гарячі
+    categories: [верхній одяг]
+  - name: "New Balance"
+    id: 385
+    package: гарячі
+    searches:
+      - name: "New Balance Made in USA"   # 990, 992, 993
+        title_include: "made in usa|\\b99[0-3]\\b|сша"
+        categories: [взуття]
+      - name: "New Balance Made in UK"   # 991, 1500, 576
+        title_include: "made in (uk|england)|\\b(991|1500|576)\\b|англі"
+        categories: [взуття]
+  - name: "Patagonia"   # Better Sweater, Retro-X, Down Sweater, Isthmus
+    id: 2204
+    package: гарячі
+    categories: [кофти, верхній одяг]
+  - name: "Paul & Shark"   # вітровки, трикотаж
+    id: 44684
+    package: гарячі
+    categories: [верхній одяг, светри]
+  - name: "Prada"   # верхній одяг, сорочки, трикотаж, взуття
+    id: 416
+    package: гарячі
+    categories: [верхній одяг, сорочки, светри, взуття]
+  - name: "Ralph Lauren"   # оксфордські й фланелеві сорочки, лляні сорочки, чінос, кашемір, твідові піджаки; уникати Polo Sport і Big Pony
+    id: [143, 47965]
+    package: гарячі
+    searches:
+      - name: основне
+        categories: [сорочки, брюки, светри, піджаки]
+        keywords_exclude: "polo sport|big pony"
+      - name: "Ralph Lauren Purple Label"   # піджаки, шовкові й лляні сорочки, кашемір, брюки
+        title_include: "purple label"
+        categories: [піджаки, сорочки, светри, брюки]
+      - name: "RRL"   # денім, робочий одяг, сорочки, трикотаж
+        title_include: "\\brrl\\b|double rl"
+        categories: [джинси, верхній одяг, штани, сорочки, светри]
+      - name: "Polo Country"   # вінтажні сорочки, светри, верхній одяг
+        title_include: "polo country"
+        categories: [сорочки, светри, верхній одяг]
+      - name: "Rugby Ralph Lauren"   # сорочки, піджаки, трикотаж
+        title_include: "\\brugby\\b"
+        categories: [сорочки, піджаки, светри]
+  - name: "Salomon"   # XT-6, XT-4, ACS Pro
+    id: 3959
+    package: гарячі
+    categories: [взуття]
+  - name: "Saucony Originals"   # кросівки
+    id: 8796
+    package: гарячі
+    categories: [взуття]
+  - name: "Schiesser"
+    id: 46233
+    package: гарячі
+    searches:
+      - name: "Schiesser Revival"   # білизна, футболки
+        title_include: "revival"
+        categories: [футболки]
+  - name: "Scotch & Soda"   # куртки, пальта, сорочки; брати речі без написів
+    id: 2105
+    package: гарячі
+    categories: [верхній одяг, сорочки]
+  - name: "Stone Island"   # верхній одяг, трикотаж, овердай
+    id: 44431
+    package: гарячі
+    categories: [верхній одяг, светри]
+  - name: "The North Face"
+    id: 3926
+    package: гарячі
+    searches:
+      - name: "The North Face Purple Label"   # верхній одяг, сорочки, брюки, сумки
+        title_include: "purple label|nanamica"
+        categories: [верхній одяг, сорочки, брюки]
+  - name: "Timberland"   # черевики, топсайдери
+    id: 268
+    package: гарячі
+    categories: [взуття]
+  - name: "Uniqlo"
+    id: 386
+    package: гарячі
+    searches:
+      - name: "Uniqlo U"   # пальта, футболки, трикотаж, брюки
+        title_include: "uniqlo\\s*u\\b|lemaire|christophe"
+        categories: [верхній одяг, футболки, светри, брюки]
+  - name: "Vivienne Westwood"   # піджаки, тартан, трикотаж
+    id: 2211
+    package: гарячі
+    categories: [піджаки, светри]
+  - name: "Wolverine"
+    id: 46067
+    package: гарячі
+    searches:
+      - name: "Wolverine 1000 Mile"   # черевики
+        title_include: "1000"
+        categories: [взуття]
+  - name: "Wrangler"
+    id: 176
+    package: гарячі
+    searches:
+      - name: "Wrangler Blue Bell"   # Broken Twill, 124MJ, Western
+        title_include: "blue bell|broken twill|124mj"
+  - name: "YSL"   # вінтажні пальта, тренчі, піджаки, шовкові сорочки, костюмні брюки, лінійка Rive Gauche
+    id: 315
+    package: гарячі
+    categories: [верхній одяг, піджаки, сорочки, брюки, костюми]
 
-# Пошуки за категорією без бренду (опційно).
-searches:
-  - name: Вовняні светри
+  # ===== звичайні: кожні 10 хв — 76 =====
+  - name: "Acne Studios"   # вовняні пальта, шарфи, джинси, шкіряні куртки, трикотаж, взуття
+    id: 48029
+    package: звичайні
+    categories: [верхній одяг, джинси, светри, взуття]
+  - name: "Alberto"   # брюки, лляні брюки
+    id: 61215
+    package: звичайні
+    categories: [брюки]
+  - name: "Anerkjendt"   # светри, фланелеві й вельветові сорочки, овершоти, брюки
+    id: [47050, 53667]
+    package: звичайні
+    categories: [светри, сорочки, верхній одяг, брюки]
+  - name: "Aquascutum"   # тренчі Aqua 5, пальта Club Check
+    id: 44893
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "ARKET"   # вовняні пальта, светри, лляні сорочки, лляні брюки, чінос, футболки
+    id: 45928
+    package: звичайні
+    categories: [верхній одяг, светри, сорочки, брюки, футболки]
+  - name: "Austin Reed"   # костюми, пальта
+    id: 30129
+    package: звичайні
+    categories: [костюми, верхній одяг]
+  - name: "Bally"   # оксфорди, лофери, кросівки
+    id: 2210
+    package: звичайні
+    categories: [взуття]
+  - name: "Banana Republic"   # лляні сорочки, вовняні брюки, чінос, меринос, кашемір, вінтаж Safari & Travel
+    id: 2300
+    package: звичайні
+    categories: [сорочки, брюки, светри]
+  - name: "Belstaff"   # Trialmaster, Roadmaster, шкіряні куртки
+    id: 46189
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Berluti"   # лофери, оксфорди
+    id: 54200
+    package: звичайні
+    categories: [взуття]
+  - name: "Birkenstock"   # сандалі, клоги
+    id: 3643
+    package: звичайні
+    categories: [взуття]
+  - name: "Bogner"   # пуховики, лижні куртки без декору
+    id: 44343
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Brioni"   # костюми, кашемір, шовкові сорочки, краватки
+    id: 10392
+    package: звичайні
+    categories: [костюми, светри, сорочки]
+  - name: "Brooks Brothers"   # оксфорд, лляні сорочки, блейзери, Polo Coat
+    id: 45906
+    package: звичайні
+    categories: [сорочки, піджаки, верхній одяг]
+  - name: "Canali"   # костюми, пальта, піджаки, сорочки
+    id: 46305
+    package: звичайні
+    categories: [костюми, верхній одяг, піджаки, сорочки]
+  - name: "Carl Gross"   # костюми, піджаки
+    id: 55230
+    package: звичайні
+    categories: [костюми, піджаки]
+  - name: "Casablanca"   # шовкові сорочки, обирати стриманіші принти
+    id: 5001
+    package: звичайні
+    categories: [сорочки]
+  - name: "Corneliani"   # костюми, кашемірові пальта, сорочки
+    id: 46304
+    package: звичайні
+    categories: [костюми, верхній одяг, сорочки]
+  - name: "Digel"   # костюми, піджаки
+    id: 50534
+    package: звичайні
+    categories: [костюми, піджаки]
+  - name: "Eduard Dressler"   # піджаки, пальта, костюми
+    id: 54461
+    package: звичайні
+    categories: [піджаки, верхній одяг, костюми]
+  - name: "Eterna"   # сорочки
+    id: 46435
+    package: звичайні
+    categories: [сорочки]
+  - name: "Eton"   # сорочки, лляні сорочки, шарфи
+    id: 46512
+    package: звичайні
+    categories: [сорочки]
+  - name: "Etro"   # піджаки, шовкові сорочки, шарфи пейслі
+    id: 1643
+    package: звичайні
+    categories: [піджаки, сорочки]
+  - name: "Fjallraven"   # Greenland, Skogso, Nuuk, трекінгові брюки, светри Ovik
+    id: 44933
+    package: звичайні
+    categories: [верхній одяг, брюки, светри]
+  - name: "Folk"   # Assembly Jacket, трикотаж, брюки, сорочки
+    id: 44934
+    package: звичайні
+    categories: [піджаки, светри, брюки, сорочки]
+  - name: "Giorgio Armani"   # піджаки, костюми, пальта, шовкові сорочки
+    id: 693
+    package: звичайні
+    categories: [піджаки, костюми, верхній одяг, сорочки]
+  - name: "Givenchy Gentleman"   # вінтажні шовкові сорочки, піджаки
+    id: 828
+    package: звичайні
+    categories: [сорочки, піджаки]
+  - name: "Glenmuir"   # светри, кардигани, поло
+    id: 46005
+    package: звичайні
+    categories: [светри, поло]
+  - name: "Gran Sasso"   # меринос, альпака, поло, лляний трикотаж
+    id: 7483
+    package: звичайні
+    categories: [светри, поло]
+  - name: "Hackett London"   # твідові піджаки, пальта, вельветові брюки, сорочки
+    id: 44897
+    package: звичайні
+    categories: [піджаки, верхній одяг, брюки, сорочки]
+  - name: "Haglofs"   # Gore-Tex, пуховики, фліс
+    id: 46001
+    package: звичайні
+    categories: [верхній одяг, кофти]
+  - name: "Harris Tweed"   # тканина, шукати за лейблом: піджаки, пальта, жилети, кепки
+    id: 47777
+    package: звичайні
+    categories: [піджаки, верхній одяг]
+  - name: "Hawes & Curtis"   # сорочки, лляні сорочки
+    id: 55111
+    package: звичайні
+    categories: [сорочки]
+  - name: "Hermes"   # шовкові сорочки, краватки, шарфи, трикотаж
+    id: 794
+    package: звичайні
+    categories: [сорочки, светри]
+  - name: "Herno"   # пуховики, пальта, Laminar
+    id: 47233
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Iceberg"   # багато моделей з мультяшними героями; брати лише жакардовий трикотаж 80–90-х з геометрією ⚠️
+    id: 611
+    package: звичайні
     categories: [светри]
-    materials: [вовна, кашемір]       # серверний фільтр: лише де продавець заповнив поле «Матеріал»
-    materials_include: "(?<!ба)вовн|шерст|кашемір|merino|wool|cashmere"   # перевірка за назвою, описом і полем
-    max_price: 2000
+    keywords_exclude: "mickey|мікі|міккі|disney|дісней|looney|tweety|bugs bunny|simpson|batman|felix"
+  - name: "J.Lindeberg"   # вовняні пальта, замшеві куртки, піджаки, меринос
+    id: 46555
+    package: звичайні
+    categories: [верхній одяг, піджаки, светри]
+  - name: "Jaeger"   # пальта, трикотаж, костюми
+    id: 2648
+    package: звичайні
+    categories: [верхній одяг, светри, костюми]
+  - name: "Jean Paul Gaultier"   # вінтажні піджаки, трикотаж
+    id: 1959
+    package: звичайні
+    categories: [піджаки, светри]
+  - name: "Kenzo"   # вінтажні жакардові жилети, светри, піджаки; уникати світшотів з тигром
+    id: 1477
+    package: звичайні
+    categories: [верхній одяг, светри, піджаки]
+    keywords_exclude: "tiger|тигр"
+  - name: "Kiton"   # піджаки, пальта, шовкові й лляні сорочки
+    id: 45663
+    package: звичайні
+    categories: [піджаки, верхній одяг, сорочки]
+  - name: "Lands' End"   # фланель, оксфорд, кашемір, вельвет
+    id: 4423
+    package: звичайні
+    categories: [сорочки, светри]
+  - name: "Lanvin"   # піджаки, пальта, шовкові сорочки, взуття
+    id: 572
+    package: звичайні
+    categories: [піджаки, верхній одяг, сорочки, взуття]
+  - name: "Lindbergh"   # пальта, шкіряні куртки, піджаки
+    id: 47413
+    package: звичайні
+    categories: [верхній одяг, піджаки]
+  - name: "Lloyd"   # оксфорди, дербі
+    id: 8142
+    package: звичайні
+    categories: [взуття]
+  - name: "Loewe"   # шкіряні куртки, трикотаж, сорочки
+    id: 6887
+    package: звичайні
+    categories: [верхній одяг, светри, сорочки]
+  - name: "Maerz Muenchen"   # меринос, жилети, поло
+    id: 47052
+    package: звичайні
+    categories: [светри, верхній одяг, поло]
+  - name: "Maison Margiela"   # деконструйовані піджаки, пальта, трикотаж; лінії 10 і 14
+    id: [1583, 44935]
+    package: звичайні
+    categories: [піджаки, верхній одяг, светри]
+  - name: "Meindl"   # трекінгові й мисливські черевики
+    id: 7426
+    package: звичайні
+    categories: [взуття]
+  - name: "Meyer"   # брюки, чінос
+    id: 59058
+    package: звичайні
+    categories: [брюки]
+  - name: "Mizuno"   # кросівки
+    id: 44874
+    package: звичайні
+    categories: [взуття]
+  - name: "Montbell"   # пуховики, аутдор
+    id: 64693
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Olymp"   # сорочки
+    id: 45771
+    package: звичайні
+    categories: [сорочки]
+  - name: "Onitsuka Tiger"   # кросівки
+    id: 46968
+    package: звичайні
+    categories: [взуття]
+  - name: "Oscar Jacobson"   # костюми, піджаки, пальта, брюки, трикотаж
+    id: 61802
+    package: звичайні
+    categories: [костюми, піджаки, верхній одяг, брюки, светри]
+  - name: "Pal Zileri"   # костюми, піджаки, пальта
+    id: 46306
+    package: звичайні
+    categories: [костюми, піджаки, верхній одяг]
+  - name: "Paul Smith"   # піджаки, пальта, сорочки, шарфи, взуття; уникати футболок з принтами
+    id: 2471
+    package: звичайні
+    categories: [піджаки, верхній одяг, сорочки, взуття]
+  - name: "Peak Performance"   # верхній одяг, трикотаж
+    id: 45362
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Peuterey"   # пуховики, парки
+    id: 46537
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Pringle of Scotland"   # кашемір, ламбсвул, аргайл, жилети, кардигани
+    id: 46895
+    package: звичайні
+    categories: [светри, верхній одяг]
+  - name: "Reiss"   # вовняні пальта, замшеві куртки, піджаки, лляні сорочки, брюки
+    id: 6166
+    package: звичайні
+    categories: [верхній одяг, піджаки, сорочки, брюки]
+  - name: "Rick Owens"   # шкіряні куртки, авангард, взуття
+    id: 45407
+    package: звичайні
+  - name: "Roy Robson"   # костюми, піджаки
+    id: 45454
+    package: звичайні
+    categories: [костюми, піджаки]
+  - name: "Rukka"   # аутдор-верхній одяг
+    id: 49014
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Santoni"   # лофери, монки, кеди
+    id: 45848
+    package: звичайні
+    categories: [взуття]
+  - name: "Scarpa"   # Mojito, гірські черевики
+    id: 16873
+    package: звичайні
+    categories: [взуття]
+  - name: "Schoffel"   # польові куртки, фліс
+    id: 45996
+    package: звичайні
+    categories: [верхній одяг, кофти]
+  - name: "Schott NYC"   # бушлати 740N, Perfecto, A-2, B-3
+    id: 45195
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Selected Homme"   # вовняні пальта, замшеві куртки, меринос, лляні сорочки, чінос
+    id: 74514
+    package: звичайні
+    categories: [верхній одяг, светри, сорочки, брюки]
+  - name: "Strellson"   # вовняні пальта, шкіряні куртки, Swiss Cross, піджаки, брюки
+    id: 6727
+    package: звичайні
+    categories: [верхній одяг, піджаки, брюки]
+  - name: "Suitsupply"   # костюми, піджаки, лляні костюми, пальта, брюки
+    id: 46856
+    package: звичайні
+    categories: [костюми, піджаки, верхній одяг, брюки]
+  - name: "T.M. Lewin"   # сорочки, костюми
+    id: 45331
+    package: звичайні
+    categories: [сорочки, костюми]
+  - name: "The Kooples"   # пальта, шкіряні куртки, піджаки, сорочки
+    id: 46041
+    package: звичайні
+    categories: [верхній одяг, піджаки, сорочки]
+  - name: "Tod's"   # Gommino, черевики, кеди
+    id: 2415
+    package: звичайні
+    categories: [взуття]
+  - name: "Universal Works"   # Bakers Jacket, широкі брюки, лляні сорочки
+    id: 58085
+    package: звичайні
+    categories: [піджаки, брюки, сорочки]
+  - name: "van Laack"   # сорочки, лляні сорочки
+    id: 44436
+    package: звичайні
+    categories: [сорочки]
+
+  # ===== рідкісні: кожні 30 хв — 137 =====
+  - name: "A.P.C."   # Petit Standard, New Standard, пальта Mac, светри
+    id: 44894
+    package: рідкісні
+    categories: [верхній одяг, светри]
+  - name: "Aigle"   # гумові чоботи
+    id: 46187
+    package: рідкісні
+    categories: [взуття]
+  - name: "Aime Leon Dore"   # трикотаж, верхній одяг
+    id: 48035
+    package: рідкісні
+    categories: [светри, верхній одяг]
+  - name: "And Wander"   # аутдор-верхній одяг, сумки
+    id: 74109
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Aran Crafts"   # аран, кардигани
+    id: 83867
+    package: рідкісні
+    categories: [светри]
+  - name: "Avant Toi"   # кашемір, вовна, трикотаж ручного фарбування
+    id: 80951
+    package: рідкісні
+    categories: [светри]
+  - name: "Baldessarini"   # пальта, костюми, піджаки
+    id: 46509
+    package: рідкісні
+    categories: [верхній одяг, костюми, піджаки]
+  - name: "Barker"   # броги, дербі, челсі
+    id: 44942
+    package: рідкісні
+    categories: [взуття]
+  - name: "Benvenuto"   # пальта, костюми
+    id: 47008
+    package: рідкісні
+    categories: [верхній одяг, костюми]
+  - name: "Bergans"   # пуховики, мембранні куртки
+    id: 49717
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Bertoni"   # костюми, пальта, трикотаж
+    id: 60337
+    package: рідкісні
+    categories: [костюми, верхній одяг, светри]
+  - name: "Berwich"   # широкі брюки, лляні брюки, чінос
+    id: 63130
+    package: рідкісні
+    categories: [брюки]
+  - name: "Blaumann Jeanshosen"   # джинси, куртки
+    id: 85543
+    package: рідкісні
+    categories: [джинси, верхній одяг]
+  - name: "Bob Company"   # піджаки, пальта
+    id: 82600
+    package: рідкісні
+    categories: [піджаки, верхній одяг]
+  - name: "Bottega Veneta"   # шкіряні куртки, трикотаж, шовкові сорочки, взуття
+    id: 44856
+    package: рідкісні
+    categories: [верхній одяг, светри, сорочки, взуття]
+  - name: "Briglia 1949"   # брюки, лляні брюки
+    id: 49710
+    package: рідкісні
+    categories: [брюки]
+  - name: "Bruun & Stengade"   # сорочки, меринос, чінос
+    id: 45682
+    package: рідкісні
+    categories: [сорочки, светри, брюки]
+  - name: "Caruso"   # піджаки, лляні піджаки, пальта, брюки
+    id: 56216
+    package: рідкісні
+    categories: [піджаки, верхній одяг, брюки]
+  - name: "Cavallaro Napoli"   # сорочки, піджаки
+    id: 94810
+    package: рідкісні
+    categories: [сорочки, піджаки]
+  - name: "Celine"   # шовкові сорочки, піджаки
+    id: 1041
+    package: рідкісні
+    categories: [сорочки, піджаки]
+  - name: "Cerruti 1881"   # костюми, піджаки, пальта
+    id: 2004
+    package: рідкісні
+    categories: [костюми, піджаки, верхній одяг]
+  - name: "Chester Barrie"   # костюми, піджаки
+    id: 85911
+    package: рідкісні
+    categories: [костюми, піджаки]
+  - name: "Cinque"   # пальта, піджаки
+    id: 51964
+    package: рідкісні
+    categories: [верхній одяг, піджаки]
+  - name: "Circolo 1901"   # трикотажні піджаки
+    id: 51884
+    package: рідкісні
+    categories: [піджаки]
+  - name: "Closed"   # джинси X-Pocket, пальта, дублянки, лляні брюки
+    id: 46658
+    package: рідкісні
+    categories: [джинси, верхній одяг, брюки]
+  - name: "Club Monaco"   # пальта, кашемір, лляні сорочки, брюки
+    id: 2531
+    package: рідкісні
+    categories: [верхній одяг, светри, сорочки, брюки]
+  - name: "Cockpit USA"   # льотні куртки
+    id: 71315
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Common Projects"   # Achilles Low, челсі
+    id: 51715
+    package: рідкісні
+    categories: [взуття]
+  - name: "Coogi"   # 3D-жакардові светри, кардигани
+    id: 17443
+    package: рідкісні
+    categories: [светри]
+  - name: "Crombie"   # вовняні й кашемірові пальта
+    id: 53421
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Cruciani"   # кашемір, шовково-кашемірові пуловери
+    id: 46491
+    package: рідкісні
+    categories: [светри]
+  - name: "Daks"   # піджаки, вовняні брюки, пальта
+    id: 44930
+    package: рідкісні
+    categories: [піджаки, брюки, верхній одяг]
+  - name: "Dale of Norway"   # норвезькі жакардові светри
+    id: 51121
+    package: рідкісні
+    categories: [светри]
+  - name: "Denham"   # денім, пальта, трикотаж
+    id: 46767
+    package: рідкісні
+    categories: [джинси, верхній одяг, светри]
+  - name: "Devold"   # светри Nansen, Islender, меринос
+    id: 57696
+    package: рідкісні
+    categories: [светри]
+  - name: "Driza-Bone"   # вощені плащі
+    id: 73927
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Drykorn"   # пальта, брюки, піджаки
+    id: 45288
+    package: рідкісні
+    categories: [верхній одяг, брюки, піджаки]
+  - name: "Dunhill"   # піджаки, пальта, трикотаж, аксесуари
+    id: 46356
+    package: рідкісні
+    categories: [піджаки, верхній одяг, светри]
+  - name: "Eddie Bauer"   # вінтажні Skyliner, Kara Koram
+    id: 1204
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Edwin"   # селвідж-денім, джинсові куртки, робочі брюки, світшоти
+    id: 45597
+    package: рідкісні
+    categories: [джинси, верхній одяг, брюки, худі]
+  - name: "El Ganso"   # піджаки, сорочки, трикотаж
+    id: 55359
+    package: рідкісні
+    categories: [піджаки, сорочки, светри]
+  - name: "Eleventy"   # трикотажні піджаки, лляні сорочки, пухові жилети, брюки
+    id: 68772
+    package: рідкісні
+    categories: [піджаки, сорочки, верхній одяг, брюки]
+  - name: "Faconnable"   # сорочки, пальта, вельвет, польові куртки
+    id: 45900
+    package: рідкісні
+    categories: [сорочки, верхній одяг]
+  - name: "Fay"   # куртки 4 Ganci, пальта, польові куртки
+    id: 44883
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Fedeli"   # кашемір, поло Giza
+    id: 45045
+    package: рідкісні
+    categories: [светри, поло]
+  - name: "Filippa K"   # вовняні пальта, меринос, кашемір, лляні сорочки, брюки
+    id: 7920
+    package: рідкісні
+    categories: [верхній одяг, светри, сорочки, брюки]
+  - name: "Filippo De Laurentiis"   # кашемір, креп-поло
+    id: 49915
+    package: рідкісні
+    categories: [светри, поло]
+  - name: "Florsheim Imperial"   # броги, оксфорди
+    id: 54801
+    package: рідкісні
+    categories: [взуття]
+  - name: "Geiger"   # вовняні куртки, лоден
+    id: 68142
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Gianfranco Ferre"   # вінтажні пальта, піджаки, сорочки
+    id: 291
+    package: рідкісні
+    categories: [верхній одяг, піджаки, сорочки]
+  - name: "Giesswein"   # варена вовна, куртки
+    id: 46563
+    package: рідкісні
+    categories: [светри, верхній одяг]
+  - name: "Gieves & Hawkes"   # костюми, піджаки, пальта, сорочки
+    id: 46860
+    package: рідкісні
+    categories: [костюми, піджаки, верхній одяг, сорочки]
+  - name: "Gloverall"   # дафлкоти Monty і Morris, бушлати
+    id: 67273
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Gramicci"   # брюки, шорти
+    id: 69755
+    package: рідкісні
+    categories: [брюки, шорти]
+  - name: "Halti"   # аутдор-верхній одяг
+    id: 58416
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Han Kjobenhavn"   # пальта, трикотаж, джинси
+    id: 83616
+    package: рідкісні
+    categories: [верхній одяг, светри, джинси]
+  - name: "Hanwag"   # Grunten
+    id: 46116
+    package: рідкісні
+    categories: [взуття]
+  - name: "Hawick Knitwear"   # ламбсвул, кашемір
+    id: 79276
+    package: рідкісні
+    categories: [светри]
+  - name: "Helmut Lang"   # вінтажний денім, верхній одяг, сорочки
+    id: 44910
+    package: рідкісні
+    categories: [джинси, верхній одяг, сорочки]
+  - name: "Hiltl"   # вовняні, вельветові й лляні брюки
+    id: 45852
+    package: рідкісні
+    categories: [брюки]
+  - name: "Holubar"   # Deer Hunter, Boulder
+    id: 85324
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Incotex"   # вовняні брюки, лляні брюки, чінос
+    id: 49874
+    package: рідкісні
+    categories: [брюки]
+  - name: "J.Crew"   # сорочки, лляні сорочки, чінос, трикотаж
+    id: [3743, 45907]
+    package: рідкісні
+    categories: [сорочки, брюки, светри]
+  - name: "J.M. Weston"   # лофери 180, дербі Golf
+    id: [67544, 69342]
+    package: рідкісні
+    categories: [взуття]
+  - name: "Jacquemus"   # сорочки, трикотаж
+    id: 51418
+    package: рідкісні
+    categories: [сорочки, светри]
+  - name: "Johnstons of Elgin"   # кашемірові шарфи, светри, кардигани, пледи
+    id: 45393
+    package: рідкісні
+    categories: [светри]
+  - name: "Kronstadt"   # фланелеві й лляні сорочки, трикотаж, чінос
+    id: 49408
+    package: рідкісні
+    categories: [сорочки, светри, брюки]
+  - name: "L.B.M. 1911"   # кежуал-піджаки, лляні піджаки, брюки
+    id: 49847
+    package: рідкісні
+    categories: [піджаки, брюки]
+  - name: "Lardini"   # піджаки, лляні піджаки, пальта, жилети
+    id: 67652
+    package: рідкісні
+    categories: [піджаки, верхній одяг]
+  - name: "Les Deux"   # замшеві куртки, брюки, сорочки
+    id: 54338
+    package: рідкісні
+    categories: [верхній одяг, брюки, сорочки]
+  - name: "Loake"   # лінійки 1880 і Shoemakers, челсі, броги
+    id: 46885
+    package: рідкісні
+    categories: [взуття]
+  - name: "Lodenfrey"   # лоден, верблюжа вовна
+    id: 70119
+    package: рідкісні
+    categories: [верхній одяг, светри]
+  - name: "Luhta"   # верхній одяг
+    id: 44667
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Magee 1866"   # донегал-піджаки, пальта, жилети
+    id: 77160
+    package: рідкісні
+    categories: [піджаки, верхній одяг]
+  - name: "Maharishi"   # Snopants, польові куртки, конопля
+    id: 50302
+    package: рідкісні
+    categories: [штани, верхній одяг]
+  - name: "Maison Kitsune"   # кардигани, оксфорд, чінос; брати речі без великих лого
+    id: 63589
+    package: рідкісні
+    categories: [светри, сорочки, брюки]
+  - name: "Malo"   # кашемір
+    id: 46573
+    package: рідкісні
+    categories: [светри]
+  - name: "Marimekko"   # сорочки з архітектурними патернами, шарфи
+    id: 7804
+    package: рідкісні
+    categories: [сорочки]
+  - name: "Matinique"   # пальта, піджаки, сорочки, брюки
+    id: 61393
+    package: рідкісні
+    categories: [верхній одяг, піджаки, сорочки, брюки]
+  - name: "Mazzarelli"   # сорочки, лляні сорочки
+    id: 64923
+    package: рідкісні
+    categories: [сорочки]
+  - name: "Mephisto"   # комфортне взуття
+    id: 743
+    package: рідкісні
+    categories: [взуття]
+  - name: "Minimum"   # пальта, светри, брюки
+    id: 44816
+    package: рідкісні
+    categories: [верхній одяг, светри, брюки]
+  - name: "Missoni"   # зигзагоподібний трикотаж, кардигани, шарфи
+    id: 672
+    package: рідкісні
+    categories: [светри]
+  - name: "Musto"   # польові куртки
+    id: 7521
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "NN07"   # чінос, лляні й фланелеві сорочки, трикотаж, пальта
+    id: 56179
+    package: рідкісні
+    categories: [брюки, сорочки, светри, верхній одяг]
+  - name: "Nobis"   # пуховики, парки
+    id: 86882
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Norrona"   # штормові куртки, пуховики, фліс
+    id: 45995
+    package: рідкісні
+    categories: [верхній одяг, кофти]
+  - name: "Norse Projects"   # Gore-Tex куртки, парки, светри, сорочки, чінос
+    id: 74844
+    package: рідкісні
+    categories: [верхній одяг, светри, сорочки, брюки]
+  - name: "Nudie Jeans"   # органічний денім, куртки, сорочки
+    id: 45549
+    package: рідкісні
+    categories: [джинси, верхній одяг, сорочки]
+  - name: "Number (N)ine"   # денім, верхній одяг, трикотаж
+    id: 69214
+    package: рідкісні
+    categories: [джинси, верхній одяг, светри]
+  - name: "Oliver Spencer"   # неструктуровані блейзери, сорочки, лляні брюки, пальта
+    id: 60261
+    package: рідкісні
+    categories: [піджаки, сорочки, брюки, верхній одяг]
+  - name: "Orlebar Brown"   # лляні сорочки, поло, шорти
+    id: 47376
+    package: рідкісні
+    categories: [сорочки, поло, шорти]
+  - name: "Orvis"   # польові й вощені куртки, фланелеві сорочки, твідові піджаки, светри, чінос
+    id: 17979
+    package: рідкісні
+    categories: [верхній одяг, сорочки, піджаки, светри, брюки]
+  - name: "Paoloni"   # піджаки, лляні костюми
+    id: 49862
+    package: рідкісні
+    categories: [піджаки, костюми]
+  - name: "Paul James Knitwear"   # меринос, ламбсвул, кардигани
+    id: 54156
+    package: рідкісні
+    categories: [светри]
+  - name: "Penfield"   # Kasson, Outback
+    id: 45550
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Percival"   # букле-овершоти, в'язані поло, пальта
+    id: 66750
+    package: рідкісні
+    categories: [сорочки, верхній одяг, поло]
+  - name: "Peter Scott"   # вінтажний ламбсвул, кашемір
+    id: 66155
+    package: рідкісні
+    categories: [светри]
+  - name: "Profuomo"   # сорочки, меринос, овершоти
+    id: 46508
+    package: рідкісні
+    categories: [сорочки, светри, верхній одяг]
+  - name: "PT Torino"   # брюки зі складками, лляні брюки, чінос
+    id: 58602
+    package: рідкісні
+    categories: [брюки]
+  - name: "Raf Simons"   # верхній одяг, трикотаж
+    id: 46770
+    package: рідкісні
+    categories: [верхній одяг, светри]
+  - name: "Rains"   # дощовики, пуховики, сумки
+    id: 44937
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Red Wing"   # Iron Ranger, Moc Toe, Beckman, Blacksmith, ремені
+    id: 45395
+    package: рідкісні
+    categories: [взуття]
+  - name: "Reda"   # костюми, трикотаж
+    id: 75257
+    package: рідкісні
+    categories: [костюми, светри]
+  - name: "Rene Lezard"   # вінтажні пальта, піджаки, брюки
+    id: 1269
+    package: рідкісні
+    categories: [верхній одяг, піджаки, брюки]
+  - name: "Sacai"   # гібридні куртки, трикотаж, сорочки
+    id: 46878
+    package: рідкісні
+    categories: [верхній одяг, светри, сорочки]
+  - name: "Samsoe Samsoe"   # светри з альпаки, пальта, овершоти, сорочки
+    id: 45791
+    package: рідкісні
+    categories: [светри, верхній одяг, сорочки]
+  - name: "Sandro Paris"   # вовняні пальта, шкіряні куртки, піджаки, сорочки, светри
+    id: 45579
+    package: рідкісні
+    categories: [верхній одяг, піджаки, сорочки, светри]
+  - name: "Scabal"   # костюми, піджаки
+    id: 49354
+    package: рідкісні
+    categories: [костюми, піджаки]
+  - name: "Schneiders Salzburg"   # лоден-пальта, куртки
+    id: 45259
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Sebago"   # Docksides, Classic Dan, Campsides
+    id: 11477
+    package: рідкісні
+    categories: [взуття]
+  - name: "Seeland"   # мисливські куртки
+    id: 52758
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Seidensticker"   # сорочки
+    id: 44818
+    package: рідкісні
+    categories: [сорочки]
+  - name: "Sorel"   # зимові черевики, duck boots, утеплене взуття
+    id: 4305
+    package: рідкісні
+    categories: [взуття]
+  - name: "Sperry Top-Sider"   # Authentic Original, Gold Cup
+    id: 44391
+    package: рідкісні
+    categories: [взуття]
+  - name: "Steinbock"   # лоден-пальта
+    id: 66729
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Stenstroms"   # сорочки, лляні сорочки, меринос, кашемір
+    id: 49850
+    package: рідкісні
+    categories: [сорочки, светри]
+  - name: "Tagliatore"   # піджаки, лляні піджаки, пальта з альпаки, костюми
+    id: 59151
+    package: рідкісні
+    categories: [піджаки, верхній одяг, костюми]
+  - name: "Tenson"   # верхній одяг
+    id: 45212
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Theory"   # піджаки, брюки, трикотаж
+    id: 44950
+    package: рідкісні
+    categories: [піджаки, брюки, светри]
+  - name: "Thomas Pink"   # сорочки
+    id: 30281
+    package: рідкісні
+    categories: [сорочки]
+  - name: "Thorogood"   # Moc Toe
+    id: 62615
+    package: рідкісні
+    categories: [взуття]
+  - name: "Tiger of Sweden"   # костюми, піджаки, пальта, брюки, сорочки, взуття
+    id: 7171
+    package: рідкісні
+    categories: [костюми, піджаки, верхній одяг, брюки, сорочки, взуття]
+  - name: "Undercover"   # пальта, куртки, трикотаж, брюки
+    id: 46879
+    package: рідкісні
+    categories: [верхній одяг, светри, брюки]
+  - name: "Uniforms for the Dedicated"   # верхній одяг, трикотаж, сорочки
+    id: 46765
+    package: рідкісні
+    categories: [верхній одяг, светри, сорочки]
+  - name: "Van Gils"   # костюми, піджаки
+    id: 1205
+    package: рідкісні
+    categories: [костюми, піджаки]
+  - name: "Vilebrequin"   # лляні сорочки, однотонні моделі
+    id: 46574
+    package: рідкісні
+    categories: [сорочки]
+  - name: "Vince"   # кашемір, трикотаж
+    id: 45829
+    package: рідкісні
+    categories: [светри]
+  - name: "Viyella"   # вовняні сорочки
+    id: 47889
+    package: рідкісні
+    categories: [сорочки]
+  - name: "Warehouse"   # репро-денім, куртки, світшоти
+    id: 175
+    package: рідкісні
+    categories: [джинси, верхній одяг, худі]
+  - name: "Windsor"   # костюми, піджаки, кашемірові пальта, лляні піджаки
+    id: 47010
+    package: рідкісні
+    categories: [костюми, піджаки, верхній одяг]
+  - name: "Wolsey"   # вінтажні светри, кардигани
+    id: 53921
+    package: рідкісні
+    categories: [светри]
+  - name: "Wood Wood"   # трикотаж, куртки, сорочки
+    id: 44984
+    package: рідкісні
+    categories: [светри, верхній одяг, сорочки]
+  - name: "Woodbird"   # сорочки, брюки, верхній одяг
+    id: 61162
+    package: рідкісні
+    categories: [сорочки, брюки, верхній одяг]
+  - name: "Woolrich / Woolrich Woolen Mills"   # Arctic Parka, Buffalo Check, пальта · вовняні куртки, парки
+    id: 44932
+    package: рідкісні
+    categories: [верхній одяг]
+  - name: "Yohji Yamamoto Pour Homme"   # габардинові брюки, довгі пальта, піджаки, сорочки
+    id: 4125
+    package: рідкісні
+    categories: [брюки, верхній одяг, піджаки, сорочки]
+  - name: "Zimmerli"   # білизна, футболки
+    id: 47373
+    package: рідкісні
+    categories: [футболки]
+
+  # ===== тихі: кожні 180 хв — 176 =====
+  - name: "120% Lino"   # лляні сорочки, лляні брюки, лляні піджаки
+    id: 49480
+    package: тихі
+    categories: [сорочки, брюки, піджаки]
+  - name: "66 North"   # парки, аутдор
+    id: 48955
+    package: тихі
+    categories: [верхній одяг]
+  - name: "A Day's March"   # трикотаж, лляні сорочки, брюки, пальта
+    id: 51203
+    package: тихі
+    categories: [светри, сорочки, брюки, верхній одяг]
+  - name: "A Kind of Guise"   # фактурні сорочки, куртки, широкі брюки
+    id: 49762
+    package: тихі
+    categories: [сорочки, верхній одяг, брюки]
+  - name: "A.Testoni"   # оксфорди, лофери
+    id: 64446
+    package: тихі
+    categories: [взуття]
+  - name: "Adolfo Dominguez"   # лляні сорочки, вільні брюки, пальта
+    id: 4989
+    package: тихі
+    categories: [сорочки, брюки, верхній одяг]
+  - name: "Agnes b."   # кардигани, піджаки, робочі куртки
+    id: 44729
+    package: тихі
+    categories: [светри, піджаки, верхній одяг]
+  - name: "Alan Paine"   # ламбсвул, кашемір, жилети
+    id: 49879
+    package: тихі
+    categories: [светри, верхній одяг]
+  - name: "Albam"   # верхній одяг, трикотаж, сорочки
+    id: 69209
+    package: тихі
+    categories: [верхній одяг, светри, сорочки]
+  - name: "Alfred Sargent"   # броги, черевики
+    id: 52386
+    package: тихі
+    categories: [взуття]
+  - name: "Allen Edmonds"   # Park Avenue, Strand, Higgins Mill
+    id: 62863
+    package: тихі
+    categories: [взуття]
+  - name: "Altea"   # піджаки, лляні сорочки, шовкові й вовняні шарфи
+    id: 58591
+    package: тихі
+    categories: [піджаки, сорочки]
+  - name: "Amundsen Sports"   # вовняні светри, аутдор-брюки, куртки
+    id: 75385
+    package: тихі
+    categories: [светри, брюки, верхній одяг]
+  - name: "Armor-Lux"   # бретонки, светри, бушлати
+    id: 60678
+    package: тихі
+    categories: [светри, верхній одяг]
+  - name: "Asket"   # футболки, оксфордські й лляні сорочки, меринос, пальта
+    id: 56414
+    package: тихі
+    categories: [футболки, сорочки, светри, верхній одяг]
+  - name: "Aspesi"   # польові куртки Minifield, пуховики, лляні сорочки
+    id: 44983
+    package: тихі
+    categories: [верхній одяг, сорочки]
+  - name: "Axel Arigato"   # кросівки
+    id: 51131
+    package: тихі
+    categories: [взуття]
+  - name: "Bagutta"   # сорочки, лляні й вельветові сорочки
+    id: 46507
+    package: тихі
+    categories: [сорочки]
+  - name: "Ballantyne"   # кашемір, кардигани, інтарсія, поло
+    id: 46307
+    package: тихі
+    categories: [светри, поло]
+  - name: "Baracuta"   # Harrington G9, G4
+    id: 45662
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Barba Napoli"   # сорочки, лляні сорочки, піджаки
+    id: 72172
+    package: тихі
+    categories: [сорочки, піджаки]
+  - name: "Barena Venezia"   # м'які піджаки, лляні брюки, кардигани, сорочки
+    id: 62812
+    package: тихі
+    categories: [піджаки, брюки, светри, сорочки]
+  - name: "Barrett"   # дербі, черевики
+    id: 48465
+    package: тихі
+    categories: [взуття]
+  - name: "Barrie"   # кашемір, жакард
+    id: 45601
+    package: тихі
+    categories: [светри]
+  - name: "Beams"   # сорочки, трикотаж, піджаки, брюки
+    id: 50312
+    package: тихі
+    categories: [сорочки, светри, піджаки, брюки]
+  - name: "Bellerose"   # сорочки, трикотаж, верхній одяг
+    id: 51120
+    package: тихі
+    categories: [сорочки, светри, верхній одяг]
+  - name: "Belvest"   # піджаки, кашемірові пальта, костюми
+    id: 68314
+    package: тихі
+    categories: [піджаки, верхній одяг, костюми]
+  - name: "Berwick 1707"   # дербі, лофери, челсі
+    id: 78423
+    package: тихі
+    categories: [взуття]
+  - name: "Bobson"   # вінтажний денім, вельветові штани
+    id: 98403
+    package: тихі
+    categories: [джинси, штани]
+  - name: "Boglioli"   # неструктуровані піджаки, лляні піджаки, брюки, пальта
+    id: 46193
+    package: тихі
+    categories: [піджаки, брюки, верхній одяг]
+  - name: "BonneGueule"   # шабре, фланель, пальта, брюки
+    id: 68956
+    package: тихі
+    categories: [сорочки, верхній одяг, брюки]
+  - name: "Boris Bidjan Saberi"   # верхній одяг, авангард
+    id: 59553
+    package: тихі
+  - name: "Brora"   # кашемір, фер-айл, шарфи
+    id: 51887
+    package: тихі
+    categories: [светри]
+  - name: "Bruuns Bazaar"   # піджаки, трикотаж, пальта
+    id: 12682
+    package: тихі
+    categories: [піджаки, светри, верхній одяг]
+  - name: "Byblos"   # багато гучного декору; брати лише стримані вінтажні піджаки й трикотаж ⚠️
+    id: 1814
+    package: тихі
+    categories: [піджаки, светри]
+  - name: "Cafe Coton"   # сорочки, лляні сорочки
+    id: 55642
+    package: тихі
+    categories: [сорочки]
+  - name: "Camper"   # Walden, Peu, Pix
+    id: 1577
+    package: тихі
+    categories: [взуття]
+  - name: "Cantarelli"   # піджаки, пальта
+    id: 46492
+    package: тихі
+    categories: [піджаки, верхній одяг]
+  - name: "Cesare Attolini"   # піджаки, костюми
+    id: 49370
+    package: тихі
+    categories: [піджаки, костюми]
+  - name: "Cheaney"   # черевики, дербі, лофери
+    id: 53014
+    package: тихі
+    categories: [взуття]
+  - name: "Christian Lacroix"   # вінтажні сорочки, піджаки
+    id: 8662
+    package: тихі
+    categories: [сорочки, піджаки]
+  - name: "Church's"   # Grafton, Ryder, Consul
+    id: 573
+    package: тихі
+    categories: [взуття]
+  - name: "Claude Montana"   # вінтажні структурні пальта, шкіряні куртки
+    id: 47794
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Colorful Standard"   # худі, світшоти, футболки
+    id: 74227
+    package: тихі
+    categories: [худі, футболки]
+  - name: "Cordings"   # вельвет, молескін, твід, Covert Coat, таттерсол
+    id: 58185
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Crockett & Jones"   # Coniston, Islay, дербі, оксфорди, лофери
+    id: 63405
+    package: тихі
+    categories: [взуття]
+  - name: "Daniele Alessandrini"   # піджаки, пальта, трикотаж, лляні сорочки
+    id: 49729
+    package: тихі
+    categories: [піджаки, верхній одяг, светри, сорочки]
+  - name: "Danner"   # Mountain Light, Bull Run
+    id: 55031
+    package: тихі
+    categories: [взуття]
+  - name: "Didriksons"   # парки, плащі
+    id: 44623
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Dormeuil"   # костюми, піджаки
+    id: 75568
+    package: тихі
+    categories: [костюми, піджаки]
+  - name: "Doucal's"   # лофери, челсі, дербі
+    id: 45630
+    package: тихі
+    categories: [взуття]
+  - name: "Drake's"   # Games Blazer, оксфорд, шабре, шетланд, шарфи, краватки
+    id: 68963
+    package: тихі
+    categories: [піджаки, сорочки, верхній одяг, светри]
+  - name: "Dries Van Noten"   # сорочки з художніми принтами, шовкові сорочки, жакардові піджаки, пальта
+    id: 45408
+    package: тихі
+    categories: [сорочки, піджаки, верхній одяг]
+  - name: "Drumohr"   # в'язка «бісквіт», кашемір, лляний трикотаж
+    id: 79217
+    package: тихі
+    categories: [светри]
+  - name: "Duvetica"   # пуховики
+    id: 46076
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Ede & Ravenscroft"   # сорочки, костюми
+    id: 91936
+    package: тихі
+    categories: [сорочки, костюми]
+  - name: "Elvine"   # зимові парки
+    id: 49787
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Engineered Garments"   # Bedford, Andover, Fatigue, жилети, сорочки
+    id: 76572
+    package: тихі
+    categories: [піджаки, взуття, брюки, верхній одяг, сорочки]
+  - name: "Ferragamo"   # лофери, оксфорди
+    id: 59282
+    package: тихі
+    categories: [взуття]
+  - name: "Filling Pieces"   # кросівки
+    id: 48068
+    package: тихі
+    categories: [взуття]
+  - name: "Finamore"   # неаполітанські сорочки, лляні сорочки
+    id: 49369
+    package: тихі
+    categories: [сорочки]
+  - name: "Fisherman Out of Ireland"   # донегал, аран
+    id: 65904
+    package: тихі
+    categories: [светри]
+  - name: "Five Brother"   # вінтажна фланель, робочі куртки
+    id: 77315
+    package: тихі
+    categories: [сорочки, верхній одяг]
+  - name: "Fratelli Rossetti"   # лофери, дербі
+    id: 1892
+    package: тихі
+    categories: [взуття]
+  - name: "Frye"   # черевики, челсі
+    id: 44882
+    package: тихі
+    categories: [взуття]
+  - name: "G.H. Bass"   # пенні-лофери Weejuns
+    id: 64494
+    package: тихі
+    categories: [взуття]
+  - name: "Gabba"   # джинси, сорочки
+    id: 56906
+    package: тихі
+    categories: [джинси, сорочки]
+  - name: "Gitman Vintage"   # оксфорд, фланель, вельвет, лляні сорочки
+    id: 81458
+    package: тихі
+    categories: [сорочки]
+  - name: "Glanshirt"   # лляні сорочки
+    id: 86384
+    package: тихі
+    categories: [сорочки]
+  - name: "Goldwin"   # пуховики, Gore-Tex, фліс, технічні брюки
+    id: 46002
+    package: тихі
+    categories: [верхній одяг, кофти, брюки]
+  - name: "Grenfell"   # плащі, куртки Golfer і Shooter
+    id: 73932
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Grenson"   # Fred, Brady, G:One
+    id: 48065
+    package: тихі
+    categories: [взуття]
+  - name: "GTA Moda"   # брюки зі складками
+    id: 91189
+    package: тихі
+    categories: [брюки]
+    keywords_exclude: "vice city|grand theft|gta\\s*(5|v)\\b|san andreas|брелок"
+  - name: "Habsburg"   # мисливські куртки, жилети, лоден
+    id: 57515
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Hamaki-Ho"   # лляні сорочки, брюки
+    id: 56687
+    package: тихі
+    categories: [сорочки, брюки]
+  - name: "Hanro"   # білизна, футболки
+    id: 46148
+    package: тихі
+    categories: [футболки]
+  - name: "Hardy Amies"   # костюми, піджаки
+    id: 78859
+    package: тихі
+    categories: [костюми, піджаки]
+  - name: "Harkila"   # мисливські куртки, трикотаж
+    id: 62341
+    package: тихі
+    categories: [верхній одяг, светри]
+  - name: "Hartford"   # лляні сорочки, лляні брюки, вельвет, піджаки
+    id: 49859
+    package: тихі
+    categories: [сорочки, брюки, піджаки]
+  - name: "Hawico"   # кашемір, жилети
+    id: 53552
+    package: тихі
+    categories: [светри, верхній одяг]
+  - name: "Henrik Vibskov"   # сорочки, трикотаж, брюки
+    id: 48963
+    package: тихі
+    categories: [сорочки, светри, брюки]
+  - name: "Heschung"   # Ginkgo, Thuya
+    id: 66493
+    package: тихі
+    categories: [взуття]
+  - name: "Hessnatur"   # лляні сорочки, вовняний трикотаж, органічний базис
+    id: 46600
+    package: тихі
+  - name: "Hoggs of Fife"   # твідові й вощені куртки
+    id: 54877
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Holland & Holland"   # твідові піджаки, верхній одяг
+    id: 84042
+    package: тихі
+    categories: [піджаки, верхній одяг]
+  - name: "Holzweiler"   # пуховики, шарфи, худі, брюки
+    id: 51201
+    package: тихі
+    categories: [верхній одяг, худі, брюки]
+  - name: "Houdini"   # аутдор, фліс, трикотаж
+    id: 67709
+    package: тихі
+    categories: [верхній одяг, кофти, светри]
+  - name: "Isaia"   # неаполітанські піджаки, сорочки, краватки
+    id: 46577
+    package: тихі
+    categories: [піджаки, сорочки]
+  - name: "John Smedley"   # меринос, Sea Island, водолазки, поло
+    id: 56155
+    package: тихі
+    categories: [светри, гольфи, поло]
+  - name: "Julius"   # авангардний верхній одяг, брюки
+    id: 75453
+    package: тихі
+  - name: "Junk de Luxe"   # сорочки, трикотаж, верхній одяг
+    id: 53932
+    package: тихі
+    categories: [сорочки, светри, верхній одяг]
+  - name: "Junya Watanabe MAN"   # денім, робочий одяг, верхній одяг, сорочки
+    id: 45574
+    package: тихі
+    categories: [джинси, верхній одяг, штани, сорочки]
+  - name: "Kapital"   # Ring Coat, жакардовий фліс, сорочки, брюки, трикотаж
+    id: 50311
+    package: тихі
+    categories: [верхній одяг, кофти, сорочки, брюки, светри]
+  - name: "Karhu"   # кросівки
+    id: 49452
+    package: тихі
+    categories: [взуття]
+  - name: "Kestin"   # верхній одяг, сорочки, брюки
+    id: 83424
+    package: тихі
+    categories: [верхній одяг, сорочки, брюки]
+  - name: "Kings of Indigo"   # денім
+    id: 61662
+    package: тихі
+    categories: [джинси]
+  - name: "Klattermusen"   # аутдор-верхній одяг, брюки
+    id: 81803
+    package: тихі
+    categories: [верхній одяг, брюки]
+  - name: "KnowledgeCotton Apparel"   # органічні сорочки, вельвет, ламбсвул
+    id: 66424
+    package: тихі
+    categories: [сорочки, светри]
+  - name: "L.L.Bean"   # Bean Boots, мокасини Jackman
+    id: 49840
+    package: тихі
+    categories: [взуття]
+  - name: "Lemaire"   # тренчі, пальта, брюки, шовкові сорочки
+    id: 69506
+    package: тихі
+    categories: [верхній одяг, брюки, сорочки]
+  - name: "Lewis Leathers"   # шкіряні куртки
+    id: 47675
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Libertine-Libertine"   # сорочки, брюки, пальта
+    id: 73854
+    package: тихі
+    categories: [сорочки, брюки, верхній одяг]
+  - name: "Los Angeles Apparel"   # важкі худі, футболки
+    id: 62138
+    package: тихі
+    categories: [худі, футболки]
+  - name: "Lubiam"   # піджаки, костюми
+    id: 86819
+    package: тихі
+    categories: [піджаки, костюми]
+  - name: "Luigi Borrelli"   # сорочки, лляні сорочки, піджаки
+    id: 46314
+    package: тихі
+    categories: [сорочки, піджаки]
+  - name: "Mackintosh"   # прогумовані плащі, пальта
+    id: 55067
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Mads Norgaard"   # смугасті светри, трикотаж, пальта
+    id: 49501
+    package: тихі
+    categories: [светри, верхній одяг]
+  - name: "Magnanni"   # туфлі, челсі
+    id: 58306
+    package: тихі
+    categories: [взуття]
+  - name: "Makia"   # парки, пальта, фланелеві сорочки
+    id: 86163
+    package: тихі
+    categories: [верхній одяг, сорочки]
+  - name: "Marinella"   # шовкові краватки
+    id: 49365
+    package: тихі
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Marni"   # мохерові светри, брюки, овершоти, пальта
+    id: 45290
+    package: тихі
+    categories: [светри, брюки, сорочки, верхній одяг]
+  - name: "Marsell"   # черевики, дербі
+    id: 48466
+    package: тихі
+    categories: [взуття]
+  - name: "Martine Rose"   # піджаки, сорочки, жакардовий фліс
+    id: 87397
+    package: тихі
+    categories: [піджаки, сорочки, кофти]
+  - name: "Mey & Edlich"   # піджаки, жилети, сорочки
+    id: 51604
+    package: тихі
+    categories: [піджаки, верхній одяг, сорочки]
+  - name: "Mister Freedom"   # робочий одяг, денім, американа
+    id: 73960
+    package: тихі
+  - name: "Moonstar"   # кеди, Alweather
+    id: 85475
+    package: тихі
+    categories: [взуття]
+  - name: "Moorer"   # пуховики, кашемірові пальта
+    id: 47954
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Moreschi"   # дербі, черевики
+    id: 47009
+    package: тихі
+    categories: [взуття]
+  - name: "Morris Stockholm"   # твідові піджаки, светри, оксфордські й лляні сорочки, чінос
+    id: 71999
+    package: тихі
+    categories: [піджаки, светри, сорочки, брюки]
+  - name: "Mr P."   # піджаки, брюки, трикотаж, взуття
+    id: 70154
+    package: тихі
+    categories: [піджаки, брюки, светри, взуття]
+  - name: "Muji"   # лляні й фланелеві сорочки, трикотаж з яка й мериносу, чінос
+    id: 46141
+    package: тихі
+    categories: [сорочки, светри, брюки]
+  - name: "Nanamica"   # Gore-Tex плащі, блейзери, брюки, сорочки
+    id: 91415
+    package: тихі
+    categories: [верхній одяг, піджаки, брюки, сорочки]
+  - name: "Nanushka"   # сатинові й шовкові сорочки, лляні сорочки
+    id: 47076
+    package: тихі
+    categories: [сорочки]
+  - name: "National Standard"   # кеди
+    id: 45605
+    package: тихі
+    categories: [взуття]
+  - name: "Nigel Cabourn"   # Everest Parka, Cameraman, бушлати
+    id: 72804
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Novesta"   # Star Master
+    id: 57008
+    package: тихі
+    categories: [взуття]
+  - name: "Octobre Editions"   # овершоти, чінос, трикотаж
+    id: 76619
+    package: тихі
+    categories: [сорочки, верхній одяг, брюки, светри]
+  - name: "Officine Creative"   # черевики, дербі
+    id: 46080
+    package: тихі
+    categories: [взуття]
+  - name: "Oger"   # костюми, піджаки
+    id: 78584
+    package: тихі
+    categories: [костюми, піджаки]
+  - name: "Oliver Cabell"   # кеди
+    id: 92743
+    package: тихі
+    categories: [взуття]
+  - name: "Onia"   # лляні сорочки
+    id: 51417
+    package: тихі
+    categories: [сорочки]
+  - name: "Original Montgomery"   # дафлкоти
+    id: 49905
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Our Legacy"   # сорочки з шовку, купро й фактурних тканин, джинси, кардигани, пальта
+    id: 69235
+    package: тихі
+    categories: [сорочки, джинси, светри, верхній одяг]
+  - name: "Outerknown"   # сорочки, трикотаж
+    id: 79602
+    package: тихі
+    categories: [сорочки, светри]
+  - name: "Panama Jack"   # черевики
+    id: 6801
+    package: тихі
+    categories: [взуття]
+  - name: "Paolo Pecora"   # лляні сорочки, брюки, піджаки
+    id: 2110
+    package: тихі
+    categories: [сорочки, брюки, піджаки]
+  - name: "Parajumpers"   # пуховики, парки
+    id: 44354
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Pedro del Hierro"   # пальта, піджаки, сорочки
+    id: 45622
+    package: тихі
+    categories: [верхній одяг, піджаки, сорочки]
+  - name: "Pendleton"   # вовняні куртки, Board Shirt, пальта
+    id: 46864
+    package: тихі
+    categories: [верхній одяг, сорочки]
+  - name: "Portuguese Flannel"   # фланель Teca, вельвет, лляні сорочки
+    id: 70008
+    package: тихі
+    categories: [сорочки]
+  - name: "R.M. Williams"   # челсі Craftsman
+    id: 53240
+    package: тихі
+    categories: [взуття]
+  - name: "Rag & Bone"   # джинси, трикотаж, верхній одяг
+    id: 46695
+    package: тихі
+    categories: [джинси, светри, верхній одяг]
+  - name: "Regent"   # піджаки, пальта
+    id: 73184
+    package: тихі
+    categories: [піджаки, верхній одяг]
+  - name: "Richard James"   # костюми, піджаки, сорочки
+    id: 62305
+    package: тихі
+    categories: [костюми, піджаки, сорочки]
+  - name: "Roberto Collina"   # мохер, альпака, поло
+    id: 57127
+    package: тихі
+    categories: [светри, поло]
+  - name: "Romeo Gigli"   # вінтажні піджаки, пальта
+    id: 46865
+    package: тихі
+    categories: [піджаки, верхній одяг]
+  - name: "Rundholz"   # лляний одяг холодного фарбування, пальта
+    id: 45555
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Saint James"   # бретонки, морські светри
+    id: 48002
+    package: тихі
+    categories: [светри]
+  - name: "Sand Copenhagen"   # піджаки, пальта, сорочки
+    id: 49464
+    package: тихі
+    categories: [піджаки, верхній одяг, сорочки]
+  - name: "Sasta"   # мисливські куртки
+    id: 87662
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Sauce Zhan"   # селвідж-денім
+    id: 76429
+    package: тихі
+    categories: [джинси]
+  - name: "Shoepassion"   # оксфорди, челсі
+    id: 52384
+    package: тихі
+    categories: [взуття]
+  - name: "Sierra Designs"   # парки 60/40
+    id: 51967
+    package: тихі
+    categories: [верхній одяг]
+  - name: "Solovair"   # черевики, дербі
+    id: 48066
+    package: тихі
+    categories: [взуття]
+  - name: "St. John's Bay"   # вінтажна фланель
+    id: 52701
+    package: тихі
+    categories: [сорочки]
+  - name: "Stephan Schneider"   # пальта, кардигани, сорочки, брюки
+    id: 46866
+    package: тихі
+    categories: [верхній одяг, светри, сорочки, брюки]
+  - name: "Still by Hand"   # куртки, вовняні пальта, брюки, трикотаж
+    id: 82712
+    package: тихі
+    categories: [верхній одяг, брюки, светри]
+  - name: "Strenesse"   # піджаки, пальта, брюки
+    id: 45783
+    package: тихі
+    categories: [піджаки, верхній одяг, брюки]
+  - name: "Studio Nicholson"   # об'ємні брюки, лляні брюки, пальта, сорочки
+    id: 51264
+    package: тихі
+    categories: [брюки, верхній одяг, сорочки]
+  - name: "Sunspel"   # футболки, поло Riviera, лляні сорочки, світшоти
+    id: 49854
+    package: тихі
+    categories: [футболки, поло, сорочки, худі]
+  - name: "Superga"   # кеди
+    id: 4549
+    package: тихі
+    categories: [взуття]
+  - name: "Tintoria Mattei 954"   # лляні сорочки garment-dyed, брюки
+    id: 49872
+    package: тихі
+    categories: [сорочки, брюки]
+  - name: "Transit Uomo"   # лляні й вовняні сорочки, брюки, піджаки
+    id: 79755
+    package: тихі
+    categories: [сорочки, брюки, піджаки]
+  - name: "Tricker's"   # Stow, Bourton
+    id: 52904
+    package: тихі
+    categories: [взуття]
+  - name: "Turnbull & Asser"   # сорочки, шовкові сорочки, краватки
+    id: 58918
+    package: тихі
+    categories: [сорочки]
+  - name: "Turo"   # пальта, костюми, піджаки
+    id: 94166
+    package: тихі
+    categories: [верхній одяг, костюми, піджаки]
+  - name: "Ulvang"   # вовняні светри Rav
+    id: 61353
+    package: тихі
+    categories: [светри]
+  - name: "Veja"   # кросівки
+    id: 47935
+    package: тихі
+    categories: [взуття]
+  - name: "Vitale Barberis Canonico"   # піджаки, костюми, брюки
+    id: 79763
+    package: тихі
+    categories: [піджаки, костюми, брюки]
+  - name: "Waldviertler"   # черевики, кросівки
+    id: 65258
+    package: тихі
+    categories: [взуття]
+  - name: "Wax London"   # Whiting Overshirt, брюки, трикотаж
+    id: 90357
+    package: тихі
+    categories: [верхній одяг, брюки, светри]
+  - name: "William Lockie"   # ламбсвул Geelong, кашемір, кардигани
+    id: 73356
+    package: тихі
+    categories: [светри]
+  - name: "Wooyoungmi"   # піджаки, пальта, сорочки
+    id: 46768
+    package: тихі
+    categories: [піджаки, верхній одяг, сорочки]
+  - name: "Xacus"   # сорочки, лляні сорочки
+    id: 58437
+    package: тихі
+    categories: [сорочки]
+  - name: "YMC"   # сорочки, верхній одяг, трикотаж
+    id: 16040
+    package: тихі
+    categories: [сорочки, верхній одяг, светри]
+  - name: "Zanone"   # кардигани, Ice Cotton поло
+    id: 49846
+    package: тихі
+    categories: [светри, поло]
+
+  # ===== не мої розміри: раз на 1 дн. — 62 =====
+  - name: "04651/A Trip in a Bag"   # лляні сорочки, брюки, курортний одяг
+    id: 96077
+    package: не мої розміри
+  - name: "Alden"   # Indy Boot, лофери, кордован
+    id: 97971
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Ann Demeulemeester"   # подовжені піджаки, шовкові сорочки, пальта
+    id: 45409
+    package: не мої розміри
+    categories: [піджаки, сорочки, верхній одяг]
+  - name: "Auralee"   # кашемірові пальта, светри, лляні й бавовняні сорочки, брюки
+    id: 59210
+    package: не мої розміри
+    categories: [верхній одяг, светри, сорочки, брюки]
+  - name: "Big John"   # денім, куртки
+    id: 91080
+    package: не мої розміри
+    categories: [джинси, верхній одяг]
+  - name: "Blarney Woollen Mills"   # аран, кардигани, шарфи
+    id: 80108
+    package: не мої розміри
+    categories: [светри]
+  - name: "Bode"   # сорочки, піджаки, печворк
+    id: 67283
+    package: не мої розміри
+    categories: [сорочки, піджаки]
+  - name: "Buttero"   # Tanino, черевики
+    id: 55731
+    package: не мої розміри
+    categories: [взуття]
+  - name: "CamperLab"   # дизайнерські черевики, кросівки
+    id: 64715
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Carmina"   # лофери, черевики
+    id: 60433
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Castaner"   # еспадрильї
+    id: 44955
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Chippewa"   # Service Boot, Apache
+    id: 54647
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Craig Green"   # Worker Jacket, трикотаж, брюки
+    id: 83998
+    package: не мої розміри
+    categories: [светри, брюки]
+  - name: "Damir Doma"   # авангард, трикотаж, лляні сорочки
+    id: 45796
+    package: не мої розміри
+  - name: "Diemme"   # Roccia Vet, кеди
+    id: 51712
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Eastland"   # лофери, мокасини
+    id: 47503
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Eternal"   # індиго-денім, робочі сорочки
+    id: 49424
+    package: не мої розміри
+    categories: [джинси, сорочки]
+  - name: "Eytys"   # кросівки
+    id: 55637
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Filson"   # Tin Cloth, Mackinaw Cruiser, жилети, сумки
+    id: 56914
+    package: не мої розміри
+    categories: [верхній одяг]
+  - name: "Fracap"   # M120
+    id: 74778
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Gabriele Pasini"   # піджаки, костюми з виразною фактурою
+    id: 53670
+    package: не мої розміри
+    categories: [піджаки, костюми]
+  - name: "Golden Bear"   # бомбери, шкіряні куртки
+    id: 94925
+    package: не мої розміри
+    categories: [верхній одяг]
+  - name: "Grant Stone"   # черевики
+    id: 65834
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Heinrich Dinkelacker"   # туфлі, черевики
+    id: 96357
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Iron Heart"   # надважкий денім, Ultra Heavy Flannel, куртки
+    id: 83789
+    package: не мої розміри
+    categories: [джинси, верхній одяг]
+  - name: "J.Press"   # піджаки, сорочки, краватки
+    id: 90671
+    package: не мої розміри
+    categories: [піджаки, сорочки]
+  - name: "Japan Blue Jeans"   # селвідж-денім, чінос, куртки
+    id: 83304
+    package: не мої розміри
+    categories: [джинси, брюки, верхній одяг]
+  - name: "Jeanerica"   # органічний денім, куртки, сорочки
+    id: 91743
+    package: не мої розміри
+    categories: [джинси, верхній одяг, сорочки]
+  - name: "Jil Sander"   # вовняні пальта, поплінові сорочки, широкі брюки, трикотаж
+    id: 101219
+    package: не мої розміри
+    categories: [верхній одяг, сорочки, брюки, светри]
+  - name: "Jofama"   # шкіряні куртки
+    id: 88136
+    package: не мої розміри
+    categories: [верхній одяг]
+  - name: "John Lobb"   # оксфорди, лофери
+    id: 60401
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Journal Standard"   # фланелеві сорочки, робочі куртки, брюки
+    id: 81698
+    package: не мої розміри
+    categories: [сорочки, верхній одяг, брюки]
+  - name: "Kiko Kostadinov"   # асиметричні куртки, брюки, трикотаж
+    id: 74521
+    package: не мої розміри
+    categories: [верхній одяг, брюки, светри]
+  - name: "Le Chameau"   # гумові й мисливські чоботи
+    id: 52373
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Lochcarron of Scotland"   # шарфи, тартан
+    id: 46433
+    package: не мої розміри
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Ludwig Reiter"   # черевики, зимові чоботи, кеди Trainer
+    id: 52488
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Mackage"   # пуховики, шкіряні куртки
+    id: 55439
+    package: не мої розміри
+    categories: [верхній одяг]
+  - name: "Margaret Howell"   # сорочки, лляні сорочки, брюки, пальта, трикотаж
+    id: 66574
+    package: не мої розміри
+    categories: [сорочки, брюки, верхній одяг, светри]
+  - name: "Marithe Francois Girbaud"   # авангардні джинси, робочі куртки
+    id: 49144
+    package: не мої розміри
+  - name: "Meermin"   # черевики, лофери, оксфорди
+    id: 51478
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Montedoro"   # пальта, куртки
+    id: 90259
+    package: не мої розміри
+    categories: [верхній одяг]
+  - name: "Naked & Famous"   # селвідж-денім, сорочки
+    id: 46952
+    package: не мої розміри
+    categories: [джинси, сорочки]
+  - name: "New & Lingwood"   # сорочки, шовкові халати, краватки
+    id: 94247
+    package: не мої розміри
+    categories: [сорочки]
+  - name: "Noah"   # трикотаж, сорочки, верхній одяг
+    id: 81783
+    package: не мої розміри
+    categories: [светри, сорочки, верхній одяг]
+  - name: "Officine Generale"   # пальта, піджаки, лляні сорочки, брюки
+    id: 71975
+    package: не мої розміри
+    categories: [верхній одяг, піджаки, сорочки, брюки]
+  - name: "OshKosh B'Gosh"   # вінтажні робочі куртки
+    id: 1963
+    package: не мої розміри
+    categories: [верхній одяг]
+  - name: "Paraboot"   # Michael, Chambord, Avignon
+    id: 79069
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Peregrine"   # меринос, ламбсвул, светри
+    id: 76918
+    package: не мої розміри
+    categories: [светри]
+  - name: "Post O'Alls"   # робочі куртки, штани, жилети
+    id: 94348
+    package: не мої розміри
+    categories: [верхній одяг, штани]
+  - name: "Pyrenex"   # пуховики
+    id: 50280
+    package: не мої розміри
+    categories: [верхній одяг]
+  - name: "Rancourt & Co"   # мокасини, лофери
+    id: 73474
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Reigning Champ"   # худі, світшоти, футболки
+    id: 88212
+    package: не мої розміри
+    categories: [худі, футболки]
+  - name: "Sanders"   # чукки, дербі, броги
+    id: 88857
+    package: не мої розміри
+    categories: [взуття]
+  - name: "Snow Peak"   # куртки Takibi, фліс, пуховики, брюки
+    id: 58950
+    package: не мої розміри
+    categories: [верхній одяг, кофти, брюки]
+  - name: "Soulland"   # сорочки, брюки, піджаки
+    id: 87901
+    package: не мої розміри
+    categories: [сорочки, брюки, піджаки]
+  - name: "Stutterheim"   # дощовики, пальта
+    id: 70596
+    package: не мої розміри
+    categories: [верхній одяг]
+  - name: "Tonsure"   # брюки, сорочки, верхній одяг
+    id: 46975
+    package: не мої розміри
+    categories: [брюки, сорочки, верхній одяг]
+  - name: "Tretorn"   # парки, дощовики, гумові черевики
+    id: 56171
+    package: не мої розміри
+    categories: [верхній одяг, взуття]
+  - name: "Visvim"   # Noragi, польові куртки, сорочки, мокасини FBT, черевики
+    id: 64003
+    package: не мої розміри
+    categories: [верхній одяг, сорочки, взуття]
+  - name: "Walker Slater"   # твідові піджаки, костюми-трійки, пальта
+    id: 85900
+    package: не мої розміри
+    categories: [піджаки, костюми, верхній одяг]
+  - name: "Whyred"   # парки, пальта, сорочки, брюки
+    id: 62724
+    package: не мої розміри
+    categories: [верхній одяг, сорочки, брюки]
+  - name: "Zamberlan"   # трекінгові черевики
+    id: 52374
+    package: не мої розміри
+    categories: [взуття]
+
+  # ===== сплячі: раз на 7 дн. — 80 =====
+  - name: "Abraham Moon"   # шарфи, пледи
+    id: 98088
+    package: сплячі
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Anglo-Italian"   # піджаки, сорочки, трикотаж
+    id: 98486
+    package: сплячі
+    categories: [піджаки, сорочки, светри]
+  - name: "Arela"   # кашемір, вовняний трикотаж
+    id: 95549
+    package: сплячі
+    categories: [светри]
+  - name: "Asahi"   # дек-шузи, Trainer
+    id: 57070
+    package: сплячі
+    categories: [взуття]
+  - name: "Bark"   # пальта, куртки
+    id: 83007
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Beauty & Youth"   # пальта, сорочки, трикотаж
+    id: 93345
+    package: сплячі
+    categories: [верхній одяг, сорочки, светри]
+  - name: "Begg x Co"   # шарфи з кашеміру й ламбсвулу, шапки, трикотаж
+    id: 86772
+    package: сплячі
+    categories: [светри]
+  - name: "Ben Davis"   # Gorilla Cut, куртки
+    id: 80926
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Blackhorse Lane Ateliers"   # денім
+    id: 66402
+    package: сплячі
+    categories: [джинси]
+  - name: "Blundstone"   # челсі 500, 510, 585
+    id: 47799
+    package: сплячі
+    categories: [взуття]
+  - name: "Buck Mason"   # футболки, кардигани, польові куртки
+    id: 100180
+    package: сплячі
+    categories: [футболки, светри, верхній одяг]
+  - name: "Casey Casey"   # м'яті лляні сорочки, куртки, брюки
+    id: 87124
+    package: сплячі
+    categories: [сорочки, верхній одяг, брюки]
+  - name: "Corgi"   # кашемірові й вовняні светри, шкарпетки
+    id: 72192
+    package: сплячі
+    categories: [светри]
+  - name: "Danefae"   # вовняний верхній одяг, трикотаж
+    id: 83384
+    package: сплячі
+    categories: [верхній одяг, светри]
+  - name: "De Bonne Facture"   # вільні брюки, лляні сорочки, овершоти, пальта
+    id: 85461
+    package: сплячі
+    categories: [брюки, сорочки, верхній одяг]
+  - name: "Denime"   # репро-денім, куртки
+    id: 7282
+    package: сплячі
+    categories: [джинси, верхній одяг]
+  - name: "Dents"   # рукавички
+    id: 53113
+    package: сплячі
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Freenote Cloth"   # денім, робочі куртки
+    id: 97567
+    package: сплячі
+    categories: [джинси, верхній одяг]
+  - name: "Freewheelers"   # робочі куртки, сорочки, шкіряні куртки
+    id: 74309
+    package: сплячі
+    categories: [верхній одяг, сорочки]
+  - name: "Frescobol Carioca"   # лляні сорочки, лляні брюки
+    id: 62425
+    package: сплячі
+    categories: [сорочки, брюки]
+  - name: "Glenmac"   # Geelong, кашемір, кардигани
+    id: 100055
+    package: сплячі
+    categories: [светри]
+  - name: "Guidi"   # черевики на блискавці
+    id: 86707
+    package: сплячі
+    categories: [взуття]
+  - name: "Guy Rover"   # сорочки, лляні сорочки
+    id: 87444
+    package: сплячі
+    categories: [сорочки]
+  - name: "Haider Ackermann"   # піджаки, шовкові сорочки, жакардові брюки
+    id: 93707
+    package: сплячі
+    categories: [піджаки, сорочки, брюки]
+  - name: "Hancock"   # прогумовані плащі
+    id: 91369
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Hanna Hats"   # твідові кашкети
+    id: 76333
+    package: сплячі
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Harley of Scotland"   # шетланд, меринос, кашемір
+    id: 83329
+    package: сплячі
+    categories: [светри]
+  - name: "Hestra"   # рукавички
+    id: 52995
+    package: сплячі
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Howlin by Morrison"   # шетланд, жакард, кардигани
+    id: 97431
+    package: сплячі
+    categories: [светри]
+  - name: "Inis Meain"   # аран, меринос, кашемір, лляний трикотаж
+    id: 85296
+    package: сплячі
+    categories: [светри]
+  - name: "Joshua Ellis"   # кашемірові шарфи
+    id: 90728
+    package: сплячі
+    categories: [светри]
+  - name: "Jumper 1234"   # кашемір
+    id: 80083
+    package: сплячі
+    categories: [светри]
+  - name: "Kent & Curwen"   # трикотаж, поло, піджаки
+    id: 62822
+    package: сплячі
+    categories: [светри, поло, піджаки]
+  - name: "Kinloch Anderson"   # тартан, шарфи
+    id: 76117
+    package: сплячі
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Kleman"   # Padror, Pastan, Froda
+    id: 80164
+    package: сплячі
+    categories: [взуття]
+  - name: "Krizia Uomo"   # вінтажні пальта, піджаки, трикотаж
+    id: 69171
+    package: сплячі
+    categories: [верхній одяг, піджаки, светри]
+  - name: "Lapuan Kankurit"   # лляні й вовняні шарфи, пледи
+    id: 86482
+    package: сплячі
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Livid Jeans"   # джинси, сорочки
+    id: 81081
+    package: сплячі
+    categories: [джинси, сорочки]
+  - name: "London Tradition"   # дафлкоти, бушлати
+    id: 89542
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Magliano"   # трикотаж, піджаки
+    id: 91456
+    package: сплячі
+    categories: [светри, піджаки]
+  - name: "Manebi"   # еспадрильї, лляні сліпони
+    id: 70082
+    package: сплячі
+    categories: [взуття]
+  - name: "Manifattura Ceccarelli"   # польові куртки, парки
+    id: 96921
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Manufactum"   # робочі куртки, лляні сорочки, вовняний трикотаж
+    id: 77455
+    package: сплячі
+    categories: [верхній одяг, сорочки, светри]
+  - name: "Masnada"   # сорочки, брюки, верхній одяг
+    id: 48978
+    package: сплячі
+    categories: [сорочки, брюки, верхній одяг]
+  - name: "Massimo Alba"   # вельветові костюми, лляні сорочки, лляні брюки, кашемір
+    id: 57026
+    package: сплячі
+    categories: [костюми, сорочки, брюки, светри]
+  - name: "Matchless"   # шкіряні куртки
+    id: 94065
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Merz b. Schwanen"   # футболки, хенлі, світшоти
+    id: 96817
+    package: сплячі
+    categories: [футболки, худі]
+  - name: "Murray Allan"   # вінтажний кашемір
+    id: 98273
+    package: сплячі
+    categories: [светри]
+  - name: "N.Peal"   # кашемір, водолазки, кардигани
+    id: 65208
+    package: сплячі
+    categories: [светри, гольфи]
+  - name: "Nanga"   # пуховики
+    id: 82127
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Palto"   # пальта
+    id: 95745
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Pherrow's"   # робочі й фланелеві сорочки, куртки, футболки
+    id: 81461
+    package: сплячі
+    categories: [сорочки, верхній одяг, футболки]
+  - name: "Pike Brothers"   # репро-денім, робочі штани, N-1
+    id: 89369
+    package: сплячі
+    categories: [джинси, штани, верхній одяг]
+  - name: "Porter Yoshida & Co"   # сумки, рюкзаки
+    id: 53968
+    package: сплячі
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Red Tornado"   # репро-денім, мілітарі
+    id: 76436
+    package: сплячі
+  - name: "Resolute"   # джинси
+    id: 86481
+    package: сплячі
+    categories: [джинси]
+  - name: "Roberto Verino"   # костюми, піджаки
+    id: 55138
+    package: сплячі
+    categories: [костюми, піджаки]
+  - name: "S.N.S. Herning"   # вовняні светри й кардигани Stark
+    id: 99762
+    package: сплячі
+    categories: [светри]
+  - name: "Samuji"   # трикотаж, сорочки, пальта
+    id: 94916
+    package: сплячі
+    categories: [светри, сорочки, верхній одяг]
+  - name: "Sandqvist"   # сумки, рюкзаки
+    id: 54216
+    package: сплячі
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Sassafras"   # робочі брюки, верхній одяг
+    id: 71249
+    package: сплячі
+    categories: [брюки, верхній одяг]
+  - name: "Schnayderman's"   # овершоти, сорочки, пальта, брюки
+    id: 91467
+    package: сплячі
+    categories: [сорочки, верхній одяг, брюки]
+  - name: "Sefr"   # сорочки з букле, пальта, широкі брюки
+    id: 56273
+    package: сплячі
+    categories: [сорочки, верхній одяг, брюки]
+  - name: "Stan Ray"   # Painter Pants, Fatigue, Chore
+    id: 67073
+    package: сплячі
+    categories: [брюки, штани, сорочки, верхній одяг]
+  - name: "Stein"   # пальта, брюки, сорочки, трикотаж
+    id: 86493
+    package: сплячі
+    categories: [верхній одяг, брюки, сорочки, светри]
+  - name: "Sulka"   # вінтажні шовкові сорочки, халати, краватки
+    id: 75618
+    package: сплячі
+    categories: [сорочки]
+  - name: "Sunnei"   # трикотаж, сорочки
+    id: 90175
+    package: сплячі
+    categories: [светри, сорочки]
+  - name: "Tomorrowland"   # трикотаж, піджаки, пальта, брюки
+    id: 66082
+    package: сплячі
+    categories: [светри, піджаки, верхній одяг, брюки]
+  - name: "Tweedmill"   # шарфи, пледи
+    id: 45301
+    package: сплячі
+    enabled: false            # лише аксесуари — поза профілем розмірів
+  - name: "Uma Wang"   # верхній одяг, трикотаж
+    id: 63041
+    package: сплячі
+    categories: [верхній одяг, светри]
+  - name: "Uniqlo +J"   # пальта, пуховики, тренчі, трикотаж
+    id: 94355
+    package: сплячі
+    categories: [верхній одяг, светри]
+  - name: "Valstar"   # Valstarino, пальта
+    id: 88332
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Vanson"   # шкіряні куртки
+    id: 57252
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Vass"   # дербі, броги
+    id: 75886
+    package: сплячі
+    categories: [взуття]
+  - name: "Wallace & Barnes"   # робочі куртки, фланель, шетланд
+    id: 83933
+    package: сплячі
+    categories: [верхній одяг, сорочки, светри]
+  - name: "White Mountaineering"   # технічні й вовняні куртки, брюки карго
+    id: 90093
+    package: сплячі
+    categories: [верхній одяг, брюки]
+  - name: "Wings + Horns"   # Cabin Fleece, куртки, пальта
+    id: 63969
+    package: сплячі
+    categories: [верхній одяг]
+  - name: "Woolpower"   # вовняна термобілизна, фліс
+    id: 78690
+    package: сплячі
+    categories: [кофти]
+  - name: "Zespa"   # кеди
+    id: 86766
+    package: сплячі
+    categories: [взуття]
+  - name: "Ziggy Chen"   # піджаки, брюки, авангард
+    id: 72120
+    package: сплячі
+
+# Пошуки без бренду: матеріали й мітки тканин (розділ 12 списку) і бренди, яких на Shafa немає як бренду
+# (текстовий пошук у назвах; title_include — щоб назва бренду справді була в заголовку).
+searches:
+  # id матеріалу різні в різних категоріях (python tools/lookup.py materials rubashki / bryuki)
+  - name: Лляні сорочки
+    categories: [сорочки]
+    materials: [1712]                 # «Льон» у сорочках (серверний фільтр: поле «Матеріал»)
+  - name: Лляні брюки
+    categories: [брюки]
+    materials: [1967]                 # «Льон» у штанах
+  - name: Шовкові сорочки
+    categories: [сорочки]
+    materials: [1725]                 # «Шовк» у сорочках
+  - name: Woolmark
+    text: woolmark
+    package: текст щодня
+  - name: Loro Piana (тканина)
+    text: loro piana
+    package: текст щодня
+
+
+  # ===== текст щодня — 35 =====
+  - name: "45R"   # денім натурального індиго, сорочки, трикотаж
+    text: "45R"
+    title_include: "45r"
+    package: текст щодня
+  - name: "Albini"   # сорочкові тканини: сорочки, лляні сорочки
+    text: "Albini"
+    title_include: "albini"
+    package: текст щодня
+  - name: "Andersen-Andersen"   # морські светри, шапки
+    text: "Andersen-Andersen"
+    title_include: "andersen[-\\s]?andersen"
+    package: текст щодня
+  - name: "Andersson Bell"   # трикотаж, верхній одяг
+    text: "Andersson Bell"
+    title_include: "andersson\\s*bell"
+    package: текст щодня
+  - name: "Balibaris"   # пальта, меринос, фланелеві сорочки
+    text: "Balibaris"
+    title_include: "balibaris"
+    package: текст щодня
+  - name: "Blue Blue Japan"   # індиго-денім, сашико, сорочки
+    text: "Blue Blue Japan"
+    title_include: "blue\\s*blue\\s*japan"
+    package: текст щодня
+  - name: "Cinquanta"   # шкіряні й замшеві куртки
+    text: "Cinquanta"
+    title_include: "cinquanta"
+    package: текст щодня
+  - name: "Cmmn Swdn"   # піджаки, сорочки, трикотаж
+    text: "Cmmn Swdn"
+    title_include: "cmmn\\s*swdn"
+    package: текст щодня
+  - name: "Doppiaa"   # сорочки, трикотаж
+    text: "Doppiaa"
+    title_include: "doppiaa"
+    package: текст щодня
+  - name: "Golden Fleece"   # парки, бушлати
+    text: "Golden Fleece"
+    title_include: "golden\\s*fleece"
+    package: текст щодня
+  - name: "Hansen Garments"   # вільні брюки, куртки-блейзери, сорочки, пальта
+    text: "Hansen Garments"
+    title_include: "hansen\\s*garments"
+    package: текст щодня
+  - name: "Holland & Sherry"   # піджаки, костюми
+    text: "Holland & Sherry"
+    title_include: "holland\\s*\\&\\s*sherry"
+    package: текст щодня
+  - name: "Irish Linen"   # сорочки, піджаки, брюки
+    text: "Irish Linen"
+    title_include: "irish\\s*linen"
+    package: текст щодня
+  - name: "ISTO."   # футболки, оксфордські й лляні сорочки, робочі куртки
+    text: "ISTO."
+    title_include: "isto\\.?"
+    package: текст щодня
+  - name: "Jan-Jan Van Essche"   # широкі брюки, лляні сорочки, кардигани
+    text: "Jan-Jan Van Essche"
+    title_include: "jan[-\\s]?jan\\s*van\\s*essche"
+    package: текст щодня
+  - name: "Mastai Ferretti"   # сорочки
+    text: "Mastai Ferretti"
+    title_include: "mastai\\s*ferretti"
+    package: текст щодня
+  - name: "Momotaro Jeans"   # селвідж-денім, джинсові куртки, шабре
+    text: "Momotaro Jeans"
+    title_include: "momotaro\\s*jeans"
+    package: текст щодня
+  - name: "Monitaly"   # верхній одяг, брюки
+    text: "Monitaly"
+    title_include: "monitaly"
+    package: текст щодня
+  - name: "N.Hoolywood"   # військовий верхній одяг, пальта, брюки
+    text: "N.Hoolywood"
+    title_include: "n\\.?hoolywood"
+    package: текст щодня
+  - name: "Needles"   # мохерові кардигани, велюрові сорочки, H.D. Pant
+    text: "Needles"
+    title_include: "needles"
+    package: текст щодня
+  - name: "NPS"   # черевики, челсі
+    text: "NPS"
+    title_include: "nps"
+    package: текст щодня
+  - name: "Scott & Charters"   # кашемір, ламбсвул
+    text: "Scott & Charters"
+    title_include: "scott\\s*\\&\\s*charters"
+    package: текст щодня
+  - name: "Sealup"   # бушлати, плащі, парки
+    text: "Sealup"
+    title_include: "sealup"
+    package: текст щодня
+  - name: "Solbiati"   # італійський льон: сорочки, піджаки
+    text: "Solbiati"
+    title_include: "solbiati"
+    package: текст щодня
+  - name: "Song for the Mute"   # куртки, сорочки, брюки
+    text: "Song for the Mute"
+    title_include: "song\\s*for\\s*the\\s*mute"
+    package: текст щодня
+  - name: "Spence Bryson"   # ірландський льон: піджаки, костюми
+    text: "Spence Bryson"
+    title_include: "spence\\s*bryson"
+    package: текст щодня
+  - name: "Spiewak"   # N-3B, бушлати
+    text: "Spiewak"
+    title_include: "spiewak"
+    package: текст щодня
+  - name: "Thomas Mason"   # сорочкові тканини: сорочки
+    text: "Thomas Mason"
+    title_include: "thomas\\s*mason"
+    package: текст щодня
+  - name: "Todd Snyder"   # Dylan, меринос-поло, Gurkha, світшоти
+    text: "Todd Snyder"
+    title_include: "todd\\s*snyder"
+    package: текст щодня
+  - name: "Urban Research"   # куртки, парки, сорочки, чінос
+    text: "Urban Research"
+    title_include: "urban\\s*research"
+    package: текст щодня
+  - name: "Velva Sheen"   # футболки, світшоти
+    text: "Velva Sheen"
+    title_include: "velva\\s*sheen"
+    package: текст щодня
+  - name: "Ventile"   # верхній одяг
+    text: "Ventile"
+    title_include: "ventile"
+    package: текст щодня
+  - name: "Wales Bonner"   # олімпійки з вовни, брюки, в'язані поло
+    text: "Wales Bonner"
+    title_include: "wales\\s*bonner"
+    package: текст щодня
+  - name: "Workers K&T H MFG"   # денім, робочі сорочки, чінос
+    text: "workers"
+    title_include: "workers\\s*k\\&t\\s*h\\s*mfg"
+    package: текст щодня
+  - name: "Yanko"   # оксфорди, лофери
+    text: "Yanko"
+    title_include: "yanko"
+    package: текст щодня
+
+  # ===== текст щотижня — 161 =====
+  - name: "3sixteen"   # денім, фланель, футболки
+    text: "3sixteen"
+    title_include: "3sixteen"
+    package: текст щотижня
+  - name: "A.Presse"   # верхній одяг, трикотаж, сорочки, брюки
+    text: "A.Presse"
+    title_include: "a\\.?presse"
+    package: текст щотижня
+  - name: "Aero Leather"   # шкіряні куртки
+    text: "Aero Leather"
+    title_include: "aero\\s*leather"
+    package: текст щотижня
+  - name: "Alex Mill"   # лляні сорочки, трикотаж
+    text: "Alex Mill"
+    title_include: "alex\\s*mill"
+    package: текст щотижня
+  - name: "Arnys"   # піджаки, сорочки
+    text: "Arnys"
+    title_include: "arnys"
+    package: текст щотижня
+  - name: "Arpenteur"   # куртки Kabig, молескін, трикотаж, широкі брюки
+    text: "Arpenteur"
+    title_include: "arpenteur"
+    package: текст щотижня
+  - name: "Arts & Science"   # лляні сорочки, трикотаж, сумки
+    text: "Arts & Science"
+    title_include: "arts\\s*\\&\\s*science"
+    package: текст щотижня
+  - name: "Astorflex"   # Greenflex, Beenflex
+    text: "Astorflex"
+    title_include: "astorflex"
+    package: текст щотижня
+  - name: "Baird McNutt"   # ірландський льон: піджаки, брюки
+    text: "Baird McNutt"
+    title_include: "baird\\s*mcnutt"
+    package: текст щотижня
+  - name: "Barns Outfitters"   # важкі футболки, світшоти, фланелеві сорочки
+    text: "Barns Outfitters"
+    title_include: "barns\\s*outfitters"
+    package: текст щотижня
+  - name: "Batoner"   # светри, кардигани рельєфної в'язки
+    text: "Batoner"
+    title_include: "batoner"
+    package: текст щотижня
+  - name: "Battenwear"   # верхній одяг, сорочки
+    text: "Battenwear"
+    title_include: "battenwear"
+    package: текст щотижня
+  - name: "Bills Khakis"   # чінос
+    text: "Bills Khakis"
+    title_include: "bills\\s*khakis"
+    package: текст щотижня
+  - name: "Blurhms"   # футболки, трикотаж, сорочки
+    text: "Blurhms"
+    title_include: "blurhms"
+    package: текст щотижня
+  - name: "Braemar"   # вінтажний кашемір, кардигани
+    text: "Braemar"
+    title_include: "braemar"
+    package: текст щотижня
+  - name: "Bronson Mfg."   # репро-мілітарі, денім, N-1
+    text: "Bronson Mfg."
+    title_include: "bronson\\s*mfg\\.?"
+    package: текст щотижня
+  - name: "Burgus Plus"   # селвідж-денім, чінос, фланелеві сорочки
+    text: "Burgus Plus"
+    title_include: "burgus\\s*plus"
+    package: текст щотижня
+  - name: "Buzz Rickson's"   # M-51, M-65, MA-1, N-1, чінос, світшоти
+    text: "Buzz Rickson's"
+    title_include: "buzz\\s*rickson['’]?s"
+    package: текст щотижня
+  - name: "Camber USA"   # важкі худі, футболки
+    text: "Camber USA"
+    title_include: "camber\\s*usa"
+    package: текст щотижня
+  - name: "Camiel Fortgens"   # деконструйовані плащі, куртки, брюки
+    text: "Camiel Fortgens"
+    title_include: "camiel\\s*fortgens"
+    package: текст щотижня
+  - name: "Campbell's of Beauly"   # шетланд, твідові куртки
+    text: "Campbell's of Beauly"
+    title_include: "campbell['’]?s\\s*of\\s*beauly"
+    package: текст щотижня
+  - name: "Charvet"   # сорочки, шовкові сорочки, краватки
+    text: "Charvet"
+    title_include: "charvet"
+    package: текст щотижня
+  - name: "Ciota"   # футболки, сорочки, брюки
+    text: "Ciota"
+    title_include: "ciota"
+    package: текст щотижня
+  - name: "Clan Douglas"   # вінтажний кашемір, ламбсвул
+    text: "Clan Douglas"
+    title_include: "clan\\s*douglas"
+    package: текст щотижня
+  - name: "Commas"   # лляні сорочки, шовкові сорочки, брюки
+    text: "Commas"
+    title_include: "commas"
+    package: текст щотижня
+  - name: "Community Clothing"   # сорочки, чінос, трикотаж
+    text: "Community Clothing"
+    title_include: "community\\s*clothing"
+    package: текст щотижня
+  - name: "Comoli"   # сорочки, брюки з льону, шовку й вовни, пальта, трикотаж
+    text: "Comoli"
+    title_include: "comoli"
+    package: текст щотижня
+  - name: "Connolly"   # трикотаж, замшеві куртки
+    text: "Connolly"
+    title_include: "connolly"
+    package: текст щотижня
+  - name: "Corridor NYC"   # сорочки Dobby та Ikat, кардигани з альпаки, куртки Chore
+    text: "Corridor NYC"
+    title_include: "corridor\\s*nyc"
+    package: текст щотижня
+  - name: "CQP"   # Tarmac, Racquet
+    text: "CQP"
+    title_include: "cqp"
+    package: текст щотижня
+  - name: "Crepuscule"   # светри, кардигани, трикотажні поло
+    text: "Crepuscule"
+    title_include: "crepuscule"
+    package: текст щотижня
+  - name: "Crescent Down Works"   # пухові жилети, пуховики 60/40
+    text: "Crescent Down Works"
+    title_include: "crescent\\s*down\\s*works"
+    package: текст щотижня
+  - name: "Croix"   # 3D-жакардові светри
+    text: "Croix"
+    title_include: "croix"
+    package: текст щотижня
+  - name: "Cushman"   # світшоти, робочий одяг
+    text: "Cushman"
+    title_include: "cushman"
+    package: текст щотижня
+  - name: "De Petrillo"   # піджаки
+    text: "De Petrillo"
+    title_include: "de\\s*petrillo"
+    package: текст щотижня
+  - name: "Dry Bones"   # денім, сорочки, американа
+    text: "Dry Bones"
+    title_include: "dry\\s*bones"
+    package: текст щотижня
+  - name: "Edifice"   # піджаки, сорочки, верхній одяг
+    text: "Edifice"
+    title_include: "edifice"
+    package: текст щотижня
+  - name: "Edward Green"   # Galway, Dover, оксфорди
+    text: "Edward Green"
+    title_include: "edward\\s*green"
+    package: текст щотижня
+  - name: "Emma Willis"   # сорочки
+    text: "Emma Willis"
+    title_include: "emma\\s*willis"
+    package: текст щотижня
+  - name: "Endless Joy"   # шовкові й тенсельові сорочки з художніми ілюстраціями
+    text: "Endless Joy"
+    title_include: "endless\\s*joy"
+    package: текст щотижня
+  - name: "European Flax"   # сертифікат льону: сорочки, брюки
+    text: "European Flax"
+    title_include: "european\\s*flax"
+    package: текст щотижня
+  - name: "Faherty"   # лляні сорочки, трикотаж
+    text: "Faherty"
+    title_include: "faherty"
+    package: текст щотижня
+  - name: "Feathered Friends"   # пуховики
+    text: "Feathered Friends"
+    title_include: "feathered\\s*friends"
+    package: текст щотижня
+  - name: "FOB Factory"   # селвідж-денім, Baker Pants, молескінові куртки
+    text: "FOB Factory"
+    title_include: "fob\\s*factory"
+    package: текст щотижня
+  - name: "Forme d'Expression"   # лляні брюки, сорочки, авангард
+    text: "Forme d'Expression"
+    title_include: "forme\\s*d['’]?expression"
+    package: текст щотижня
+  - name: "Fox Brothers"   # фланелеві костюми, пальта
+    text: "Fox Brothers"
+    title_include: "fox\\s*brothers"
+    package: текст щотижня
+  - name: "Frahm"   # вощені й польові куртки
+    text: "Frahm"
+    title_include: "frahm"
+    package: текст щотижня
+  - name: "Full Count"   # селвідж-денім, куртки, сорочки
+    text: "Full Count"
+    title_include: "full\\s*count"
+    package: текст щотижня
+  - name: "Gaziano & Girling"   # оксфорди, лофери
+    text: "Gaziano & Girling"
+    title_include: "gaziano\\s*\\&\\s*girling"
+    package: текст щотижня
+  - name: "Graph Zero"   # жакардовий денім, робочі куртки, сорочки
+    text: "Graph Zero"
+    title_include: "graph\\s*zero"
+    package: текст щотижня
+  - name: "Graphpaper"   # оверсайз-сорочки, широкі брюки, пальта
+    text: "Graphpaper"
+    title_include: "graphpaper"
+    package: текст щотижня
+  - name: "Green Label Relaxing"   # піджаки, лляні сорочки, брюки
+    text: "Green Label Relaxing"
+    title_include: "green\\s*label\\s*relaxing"
+    package: текст щотижня
+  - name: "Guernsey Woollens"   # гернсі
+    text: "Guernsey Woollens"
+    title_include: "guernsey\\s*woollens"
+    package: текст щотижня
+  - name: "Heimat Textil"   # трикотаж, шапки
+    text: "Heimat Textil"
+    title_include: "heimat\\s*textil"
+    package: текст щотижня
+  - name: "Hender Scheme"   # шкіряне взуття, кросівки
+    text: "Hender Scheme"
+    title_include: "hender\\s*scheme"
+    package: текст щотижня
+  - name: "Hevo"   # лляні сорочки, брюки, курортний одяг
+    text: "Hevo"
+    title_include: "hevo"
+    package: текст щотижня
+  - name: "Hilditch & Key"   # сорочки
+    text: "Hilditch & Key"
+    title_include: "hilditch\\s*\\&\\s*key"
+    package: текст щотижня
+  - name: "Hiut Denim"   # денім
+    text: "Hiut Denim"
+    title_include: "hiut\\s*denim"
+    package: текст щотижня
+  - name: "Hogg of Hawick"   # вінтажний кашемір, ламбсвул
+    text: "Hogg of Hawick"
+    title_include: "hogg\\s*of\\s*hawick"
+    package: текст щотижня
+  - name: "Hope Stockholm"   # широкі брюки, оверсайз-пальта, сорочки
+    text: "Hope Stockholm"
+    title_include: "hope\\s*stockholm"
+    package: текст щотижня
+  - name: "House of Blanks"   # важкі футболки
+    text: "House of Blanks"
+    title_include: "house\\s*of\\s*blanks"
+    package: текст щотижня
+  - name: "Husbands Paris"   # пальта, піджаки, брюки
+    text: "Husbands Paris"
+    title_include: "husbands\\s*paris"
+    package: текст щотижня
+  - name: "Inverallan"   # аран, кардигани
+    text: "Inverallan"
+    title_include: "inverallan"
+    package: текст щотижня
+  - name: "Jamieson & Smith"   # шетланд, фер-айл
+    text: "Jamieson & Smith"
+    title_include: "jamieson\\s*\\&\\s*smith"
+    package: текст щотижня
+  - name: "Jamieson's of Shetland"   # шетланд, фер-айл
+    text: "Jamieson's of Shetland"
+    title_include: "jamieson['’]?s\\s*of\\s*shetland"
+    package: текст щотижня
+  - name: "Jelado"   # репро-денім, фланелеві сорочки, куртки
+    text: "Jelado"
+    title_include: "jelado"
+    package: текст щотижня
+  - name: "Kaptain Sunshine"   # пальта Traveller, польові куртки, брюки, лляні сорочки
+    text: "Kaptain Sunshine"
+    title_include: "kaptain\\s*sunshine"
+    package: текст щотижня
+  - name: "Kerry Woollen Mills"   # светри, шарфи, пледи
+    text: "Kerry Woollen Mills"
+    title_include: "kerry\\s*woollen\\s*mills"
+    package: текст щотижня
+  - name: "Kilgour"   # костюми, піджаки
+    text: "Kilgour"
+    title_include: "kilgour"
+    package: текст щотижня
+  - name: "Koio"   # кеди
+    text: "Koio"
+    title_include: "koio"
+    package: текст щотижня
+  - name: "Kojima Genes"   # селвідж-денім, робочі штани, куртки
+    text: "Kojima Genes"
+    title_include: "kojima\\s*genes"
+    package: текст щотижня
+  - name: "Kolor"   # брюки, кардигани, куртки, пальта
+    text: "Kolor"
+    title_include: "kolor"
+    package: текст щотижня
+  - name: "L.C. King"   # робочі куртки
+    text: "L.C. King"
+    title_include: "l\\.?c\\.?\\s*king"
+    package: текст щотижня
+  - name: "Label Under Construction"   # трикотаж
+    text: "Label Under Construction"
+    title_include: "label\\s*under\\s*construction"
+    package: текст щотижня
+  - name: "Laurence J. Smith"   # шетланд
+    text: "Laurence J. Smith"
+    title_include: "laurence\\s*j\\.?\\s*smith"
+    package: текст щотижня
+  - name: "Le Laboureur"   # молескінові й вельветові куртки, робочі штани
+    text: "Le Laboureur"
+    title_include: "le\\s*laboureur"
+    package: текст щотижня
+  - name: "Le Minor"   # трикотаж, бретонки
+    text: "Le Minor"
+    title_include: "le\\s*minor"
+    package: текст щотижня
+  - name: "Le Tricoteur"   # гернсі
+    text: "Le Tricoteur"
+    title_include: "le\\s*tricoteur"
+    package: текст щотижня
+  - name: "Left Field NYC"   # денім, робочі сорочки
+    text: "Left Field NYC"
+    title_include: "left\\s*field\\s*nyc"
+    package: текст щотижня
+  - name: "Libeco"   # бельгійський льон: сорочки, брюки
+    text: "Libeco"
+    title_include: "libeco"
+    package: текст щотижня
+  - name: "LinenMe"   # лляні сорочки
+    text: "LinenMe"
+    title_include: "linenme"
+    package: текст щотижня
+  - name: "Loopwheeler"   # світшоти, худі, кардигани
+    text: "Loopwheeler"
+    title_include: "loopwheeler"
+    package: текст щотижня
+  - name: "Lovat Mill"   # шарфи, твід
+    text: "Lovat Mill"
+    title_include: "lovat\\s*mill"
+    package: текст щотижня
+  - name: "MagicLinen"   # лляні сорочки, брюки
+    text: "MagicLinen"
+    title_include: "magiclinen"
+    package: текст щотижня
+  - name: "Markaware"   # пальта й брюки з органічної вовни, сорочки
+    text: "Markaware"
+    title_include: "markaware"
+    package: текст щотижня
+  - name: "Masters of Linen"   # сертифікат європейського льону: сорочки, брюки, піджаки
+    text: "Masters of Linen"
+    title_include: "masters\\s*of\\s*linen"
+    package: текст щотижня
+  - name: "McGeorge of Scotland"   # шетланд, ламбсвул, кашемір
+    text: "McGeorge of Scotland"
+    title_include: "mcgeorge\\s*of\\s*scotland"
+    package: текст щотижня
+  - name: "Mfpen"   # сорочки, широкі брюки, пальта
+    text: "Mfpen"
+    title_include: "mfpen"
+    package: текст щотижня
+  - name: "MHL."   # робочі куртки, широкі штани, сорочки
+    text: "MHL."
+    title_include: "mhl\\.?"
+    package: текст щотижня
+  - name: "Nano Universe"   # верхній одяг, шкіряні куртки, пальта
+    text: "Nano Universe"
+    title_include: "nano\\s*universe"
+    package: текст щотижня
+  - name: "Nepenthes"   # сорочки, куртки, брюки, трикотаж
+    text: "Nepenthes"
+    title_include: "nepenthes"
+    package: текст щотижня
+  - name: "Nicholas Daley"   # трикотаж, верхній одяг
+    text: "Nicholas Daley"
+    title_include: "nicholas\\s*daley"
+    package: текст щотижня
+  - name: "Nicks Boots"   # робочі черевики
+    text: "Nicks Boots"
+    title_include: "nicks\\s*boots"
+    package: текст щотижня
+  - name: "Nokian Footwear"   # гумові чоботи
+    text: "Nokian Footwear"
+    title_include: "nokian\\s*footwear"
+    package: текст щотижня
+  - name: "Nonnative"   # куртки, брюки, сорочки
+    text: "Nonnative"
+    title_include: "nonnative"
+    package: текст щотижня
+  - name: "Norwegian Rain"   # плащі, парки
+    text: "Norwegian Rain"
+    title_include: "norwegian\\s*rain"
+    package: текст щотижня
+  - name: "Oak Street Bootmakers"   # черевики, мокасини
+    text: "Oak Street Bootmakers"
+    title_include: "oak\\s*street\\s*bootmakers"
+    package: текст щотижня
+  - name: "OAMC"   # верхній одяг, сорочки
+    text: "OAMC"
+    title_include: "oamc"
+    package: текст щотижня
+  - name: "Oliver Church"   # куртки, сорочки, брюки
+    text: "Oliver Church"
+    title_include: "oliver\\s*church"
+    package: текст щотижня
+  - name: "Omnigod"   # вінтажний денім, робочі куртки, фланель
+    text: "Omnigod"
+    title_include: "omnigod"
+    package: текст щотижня
+  - name: "Oni Denim"   # Secret Denim, джинсові куртки
+    text: "Oni Denim"
+    title_include: "oni\\s*denim"
+    package: текст щотижня
+  - name: "Ooe Yofukuten"   # селвідж-денім
+    text: "Ooe Yofukuten"
+    title_include: "ooe\\s*yofukuten"
+    package: текст щотижня
+  - name: "Orcival"   # бретонки
+    text: "Orcival"
+    title_include: "orcival"
+    package: текст щотижня
+  - name: "Ordinary Fits"   # робочі брюки, сорочки, денім
+    text: "Ordinary Fits"
+    title_include: "ordinary\\s*fits"
+    package: текст щотижня
+  - name: "Orslow"   # джинси, fatigue-штани, French Work Jacket, шабре
+    text: "Orslow"
+    title_include: "orslow"
+    package: текст щотижня
+  - name: "Padmore & Barnes"   # мокасини, чукки
+    text: "Padmore & Barnes"
+    title_include: "padmore\\s*\\&\\s*barnes"
+    package: текст щотижня
+  - name: "Pantherella"   # шкарпетки
+    text: "Pantherella"
+    title_include: "pantherella"
+    package: текст щотижня
+  - name: "Phigvel"   # робочий одяг, сорочки, верхній одяг
+    text: "Phigvel"
+    title_include: "phigvel"
+    package: текст щотижня
+  - name: "Pointer Brand"   # Chore Coat, Hickory Stripe
+    text: "Pointer Brand"
+    title_include: "pointer\\s*brand"
+    package: текст щотижня
+  - name: "Porter Classic"   # сашико-куртки, сорочки, брюки, сумки
+    text: "Porter Classic"
+    title_include: "porter\\s*classic"
+    package: текст щотижня
+  - name: "Private White V.C."   # бушлати, молескін, вощені куртки, пальта
+    text: "Private White V.C."
+    title_include: "private\\s*white\\s*v\\.?c\\.?"
+    package: текст щотижня
+  - name: "Pure Blue Japan"   # slubby-денім, індиго-сорочки, трикотаж
+    text: "Pure Blue Japan"
+    title_include: "pure\\s*blue\\s*japan"
+    package: текст щотижня
+  - name: "Quoddy"   # мокасини, топсайдери
+    text: "Quoddy"
+    title_include: "quoddy"
+    package: текст щотижня
+  - name: "Railcar Fine Goods"   # денім
+    text: "Railcar Fine Goods"
+    title_include: "railcar\\s*fine\\s*goods"
+    package: текст щотижня
+  - name: "Raleigh Denim"   # денім
+    text: "Raleigh Denim"
+    title_include: "raleigh\\s*denim"
+    package: текст щотижня
+  - name: "Real Japan Blues"   # селвідж-денім
+    text: "Real Japan Blues"
+    title_include: "real\\s*japan\\s*blues"
+    package: текст щотижня
+  - name: "Reproduction of Found"   # German Military Trainer, French Trainer
+    text: "Reproduction of Found"
+    title_include: "reproduction\\s*of\\s*found"
+    package: текст щотижня
+  - name: "Ring Jacket"   # піджаки, костюми, брюки
+    text: "Ring Jacket"
+    title_include: "ring\\s*jacket"
+    package: текст щотижня
+  - name: "Rocky Mountain Featherbed"   # пухові жилети
+    text: "Rocky Mountain Featherbed"
+    title_include: "rocky\\s*mountain\\s*featherbed"
+    package: текст щотижня
+  - name: "Rogue Territory"   # денім, Supply Jacket, сорочки
+    text: "Rogue Territory"
+    title_include: "rogue\\s*territory"
+    package: текст щотижня
+  - name: "Russell Moccasin"   # чукки, мокасини
+    text: "Russell Moccasin"
+    title_include: "russell\\s*moccasin"
+    package: текст щотижня
+  - name: "Sage Nation"   # брюки Box Pleat, куртки, сорочки
+    text: "Sage Nation"
+    title_include: "sage\\s*nation"
+    package: текст щотижня
+  - name: "Samurai Jeans"   # селвідж-денім, куртки, футболки
+    text: "Samurai Jeans"
+    title_include: "samurai\\s*jeans"
+    package: текст щотижня
+  - name: "Sartoria Partenopea"   # піджаки, костюми
+    text: "Sartoria Partenopea"
+    title_include: "sartoria\\s*partenopea"
+    package: текст щотижня
+  - name: "SEH Kelly"   # піджаки, пальта, сорочки з ірландського льону
+    text: "SEH Kelly"
+    title_include: "seh\\s*kelly"
+    package: текст щотижня
+  - name: "Seraphin"   # шкіряні куртки, дублянки
+    text: "Seraphin"
+    title_include: "seraphin"
+    package: текст щотижня
+  - name: "Shetland Woollen Co"   # шетланд
+    text: "Shetland Woollen Co"
+    title_include: "shetland\\s*woollen\\s*co"
+    package: текст щотижня
+  - name: "Shoes Like Pottery"   # кеди
+    text: "Shoes Like Pottery"
+    title_include: "shoes\\s*like\\s*pottery"
+    package: текст щотижня
+  - name: "Skull Jeans"   # селвідж-денім
+    text: "Skull Jeans"
+    title_include: "skull\\s*jeans"
+    package: текст щотижня
+  - name: "South2 West8"   # аутдор-куртки, жилети, сорочки
+    text: "South2 West8"
+    title_include: "south2\\s*west8"
+    package: текст щотижня
+  - name: "Spalwart"   # Marathon Trail
+    text: "Spalwart"
+    title_include: "spalwart"
+    package: текст щотижня
+  - name: "Spellbound"   # денім, робочі штани, шабре
+    text: "Spellbound"
+    title_include: "spellbound"
+    package: текст щотижня
+  - name: "Steven Alan"   # сорочки
+    text: "Steven Alan"
+    title_include: "steven\\s*alan"
+    package: текст щотижня
+  - name: "Stevenson Overall Co"   # джинси 20–30-х, сорочки
+    text: "Stevenson Overall Co"
+    title_include: "stevenson\\s*overall\\s*co"
+    package: текст щотижня
+  - name: "Story mfg."   # лляні куртки, сорочки, брюки з рослинним фарбуванням
+    text: "Story mfg."
+    title_include: "story\\s*mfg\\.?"
+    package: текст щотижня
+  - name: "Studio D'Artisan"   # селвідж-денім, куртки, світшоти
+    text: "Studio D'Artisan"
+    title_include: "studio\\s*d['’]?artisan"
+    package: текст щотижня
+  - name: "Sugar Cane"   # репро-денім, робочі сорочки, жилети
+    text: "Sugar Cane"
+    title_include: "sugar\\s*cane"
+    package: текст щотижня
+  - name: "Sunsea"   # піджаки, брюки, сорочки
+    text: "Sunsea"
+    title_include: "sunsea"
+    package: текст щотижня
+  - name: "Takahiromiyashita The Soloist"   # верхній одяг, авангард
+    text: "soloist"
+    title_include: "takahiromiyashita\\s*the\\s*soloist"
+    package: текст щотижня
+  - name: "Tanuki"   # селвідж-денім, куртки
+    text: "Tanuki"
+    title_include: "tanuki"
+    package: текст щотижня
+  - name: "Taylor Stitch"   # The Jack, лляні сорочки, Long Haul, чінос
+    text: "Taylor Stitch"
+    title_include: "taylor\\s*stitch"
+    package: текст щотижня
+  - name: "TCB Jeans"   # репро-денім, куртки Chore
+    text: "TCB Jeans"
+    title_include: "tcb\\s*jeans"
+    package: текст щотижня
+  - name: "Teatora"   # технічні брюки, куртки
+    text: "Teatora"
+    title_include: "teatora"
+    package: текст щотижня
+  - name: "Tellason"   # денім, Coverall
+    text: "Tellason"
+    title_include: "tellason"
+    package: текст щотижня
+  - name: "The Flat Head"   # селвідж-денім, фланелеві сорочки, шкіряні куртки
+    text: "The Flat Head"
+    title_include: "the\\s*flat\\s*head"
+    package: текст щотижня
+  - name: "The Real McCoy's"   # шкіряні куртки A-2, N-1, світшоти, фланелеві сорочки
+    text: "The Real McCoy's"
+    title_include: "the\\s*real\\s*mccoy['’]?s"
+    package: текст щотижня
+  - name: "TLB Mallorca"   # черевики, лофери
+    text: "TLB Mallorca"
+    title_include: "tlb\\s*mallorca"
+    package: текст щотижня
+  - name: "Toogood"   # верхній одяг, робочий одяг
+    text: "Toogood"
+    title_include: "toogood"
+    package: текст щотижня
+  - name: "Toys McCoy"   # шкіряні й льотні куртки
+    text: "Toys McCoy"
+    title_include: "toys\\s*mccoy"
+    package: текст щотижня
+  - name: "Trophy Clothing"   # Dirt Denim, куртки, сорочки
+    text: "Trophy Clothing"
+    title_include: "trophy\\s*clothing"
+    package: текст щотижня
+  - name: "UES"   # селвідж-денім, фланелеві сорочки
+    text: "UES"
+    title_include: "ues"
+    package: текст щотижня
+  - name: "United Arrows"   # пальта, піджаки, сорочки, брюки
+    text: "United Arrows"
+    title_include: "united\\s*arrows"
+    package: текст щотижня
+  - name: "Vetra"   # робочі куртки з молескіну, саржі й льону
+    text: "Vetra"
+    title_include: "vetra"
+    package: текст щотижня
+  - name: "Viberg"   # Service Boot
+    text: "Viberg"
+    title_include: "viberg"
+    package: текст щотижня
+  - name: "Wacko Maria"   # основна частина асортименту — гучні принтовані сорочки; брати мохерові кардигани й вовняні брюки
+    text: "Wacko Maria"
+    title_include: "wacko\\s*maria"
+    package: текст щотижня
+  - name: "Wesco"   # робочі черевики
+    text: "Wesco"
+    title_include: "wesco"
+    package: текст щотижня
+  - name: "West End Knitwear"   # аран, светри
+    text: "West End Knitwear"
+    title_include: "west\\s*end\\s*knitwear"
+    package: текст щотижня
+  - name: "White's Boots"   # робочі черевики
+    text: "White's Boots"
+    title_include: "white['’]?s\\s*boots"
+    package: текст щотижня
+  - name: "Y's for men"   # піджаки, брюки, сорочки
+    text: "Y's for men"
+    title_include: "y['’]?s\\s*for\\s*men"
+    package: текст щотижня
+  - name: "Yaeca"   # лляні й бавовняні сорочки, чінос, преміум-базис
+    text: "Yaeca"
+    title_include: "yaeca"
+    package: текст щотижня
+  - name: "Yuketen"   # мокасини, Maine Guide
+    text: "Yuketen"
+    title_include: "yuketen"
+    package: текст щотижня
+
+# Без пошуку (загальні слова дають шум у текстовому пошуку): 18 East, Big Mac, Budd, Cale, Danton, Herill, Kardo, Kato, Kuro, La Paz, Old Town, Rota, Scye, Ships, Somet, Stewart, Strike Gold, Studious, Sunflower, Ten C, Tundra, Yoke

@@ -15,8 +15,8 @@ from shafa_watch import main, rules  # noqa: E402
 NOW = dt.datetime.now(dt.timezone.utc)
 
 
-def item(pid, brand, slug, hours_ago=1, name="річ"):
-    return {"id": pid, "url": f"/uk/item/{pid}", "name": name, "price": 1000, "condition": 2,
+def item(pid, brand, slug, hours_ago=1, name=None):
+    return {"id": pid, "url": f"/uk/item/{pid}", "name": name or f"річ {pid}", "price": 1000, "condition": 2,
             "createdAt": (NOW - dt.timedelta(hours=hours_ago)).isoformat(), "statusTitle": "AVAILABLE",
             "catalogSlug": slug, "brand": {"id": brand, "name": f"B{brand}"} if brand else None, "sizes": []}
 
@@ -44,6 +44,7 @@ class FakeTelegram:
 
     def __init__(self, *a, **k):
         self.dry_run = False
+        self.chat_id = "1"
 
     def listing(self, caption, photos, url, silent=False):
         FakeTelegram.sent.append(url.replace("https://shafa.ua", ""))
@@ -116,6 +117,34 @@ class RunTest(unittest.TestCase):
         FakeShafa.catalog.append(item(34, 2, "shtany-i-shorty/dzhinsy", 0.5))
         self.run_once(cfg)
         self.assertEqual(FakeTelegram.sent, ["/uk/item/32", "/uk/item/34"])
+
+    def test_same_title_and_price_sent_once(self):
+        cfg = write(self.tmp, BASE.format(extra=""))
+        self.run_once(cfg)
+        FakeShafa.catalog += [item(41, 1, "shtany-i-shorty/dzhinsy", name="Джинси x"),
+                              item(42, 1, "shtany-i-shorty/dzhinsy", name="Джинси X")]
+        self.run_once(cfg)
+        self.assertEqual(len(FakeTelegram.sent), 1)
+
+    def test_slow_package_runs_by_interval(self):
+        body = BASE.format(extra="  - name: R\n    id: 5\n    package: рідкісні").replace(
+            "my_sizes:", "settings:\n  packages: {звичайні: 10, рідкісні: 30}\nmy_sizes:")
+        cfg = write(self.tmp, body)
+        from shafa_watch import state as st_mod
+        c = rules.load(cfg)
+        s = st_mod.State(self.tmp / "s.json")
+        self.assertEqual(len(main.select_due(c.groups(), c, s)), len(c.groups()))
+        slow = [g for g in c.groups() if g.package == "рідкісні"][0]
+        s.health["group_last"] = {slow.id: __import__("time").time()}
+        self.assertNotIn(slow, main.select_due(c.groups(), c, s))
+
+    def test_reseller_and_title_include(self):
+        r = rules.loads("brands: [{name: X, id: 1, title_include: 'rrl|double rl'}]").rules[0]
+        base = item(1, 1, "rubashki/rubashki")
+        self.assertIsNone(rules.quick_check({**base, "name": "Сорочка RRL"}, r))
+        self.assertIn("фрази", rules.quick_check({**base, "name": "Сорочка Polo"}, r))
+        r2 = rules.loads("brands: [{name: X, id: 1}]").rules[0]
+        self.assertIn("перекуп", rules.quick_check({**base, "name": "Світшот нові s-xl"}, r2))
 
     def test_demo_does_not_touch_state(self):
         cfg = write(self.tmp, BASE.format(extra=""))

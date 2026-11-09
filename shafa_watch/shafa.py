@@ -118,7 +118,7 @@ class Shafa:
     def products(self, *, brands: list[int] | None, catalog: str | None = None, sizes: list[int] | None = None,
                  conditions: list[int] | None = None, price_to: int | None = None,
                  price_from: int | None = None, characteristics: list[int] | None = None,
-                 first: int = 100, page: int = 1) -> tuple[list[dict], bool]:
+                 first: int = 100, page: int = 1, search_text: str | None = None) -> tuple[list[dict], bool]:
         v = {"first": first, "pageNum": page, "orderBy": "4"}
         if brands:
             v["brands"] = brands
@@ -134,7 +134,12 @@ class Shafa:
             v["priceFrom"] = int(price_from)
         if characteristics:
             v["characteristics"] = characteristics
-        data = self._post("WEB_CatalogProducts", PRODUCTS_QUERY, v)
+        query = PRODUCTS_QUERY
+        if search_text:
+            v["searchText"] = search_text
+            query = PRODUCTS_QUERY.replace("$characteristics: [Int!]) {", "$characteristics: [Int!], $searchText: String) {") \
+                .replace("characteristics: $characteristics) {", "characteristics: $characteristics, searchText: $searchText) {")
+        data = self._post("WEB_CatalogProducts", query, v)
         p = data["products"]
         return [e["node"] for e in p["edges"]], bool(p["pageInfo"]["hasNextPage"])
 

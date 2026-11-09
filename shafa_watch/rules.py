@@ -103,8 +103,19 @@ MEN_SERVER_PARENTS = {"kofti": "kofti", "kofty": "kofti", "obuv": "obuv", "futbo
                       "sport-i-otdyh": "sport-i-otdyh"}
 
 FILTER_KEYS = ("section", "sizes", "categories", "min_condition", "max_price", "min_price", "materials",
-               "materials_include", "materials_exclude", "keywords_exclude", "max_age_hours")
-# Назви матеріалів → id (характеристика 11, перевірено `tools/lookup.py materials kofti`). Інші — числом.
+               "materials_include", "materials_exclude", "keywords_exclude", "max_age_hours",
+               "package", "title_include", "text", "reseller_filter")
+DEFAULT_PACKAGE = "звичайні"
+# Перекупники/репліки: мультирозмірні оголошення нового товару («s-xl», «s, m, l, xl», «розміри від s до xl»),
+# репліки й опт. «l-xl» (одна річ на межі розмірів) — не перекупник.
+RESELLER_RX = re.compile(
+    r"\b(xxs|xs|s|m|с|м)\s*[-–—/]\s*(xl|xxl|[2-5]xl|хл|ххл)\b"
+    r"|\b(xs|s|m|l|с|м|л)\s*,\s*(s|m|l|xl|м|л|хл)\s*,\s*(m|l|xl|xxl|л|хл|ххл)\b"
+    r"|розмір\w*\s+від\s+\S+\s+до|в\s+наявності\s+(всі\s+|усі\s+)?розмір|\b(всі|усі)\s+розміри"
+    r"|реплік|\bкопі[яю]\b|\breplica\b|\b1\s*:\s*1\b|люкс\s*як|\blux\b|\bопт\b|оптом|дропшип|під\s+замовлення",
+    re.I)
+# Назви матеріалів → id для «Кофт і светрів» (`tools/lookup.py materials kofti`). Увага: в інших категоріях
+# id інші (сорочки: льон 1712, шовк 1725; штани: льон 1967, шовк 1979) — там вказуй числом.
 MATERIAL_IDS = {"бавовна": 1243, "вовна": 1245, "кашемір": 1225, "льон": 1230, "шовк": 1244,
                 "штучний шовк": 1224, "акрил": 1206, "альпака": 2252, "ангора": 2266}
 
@@ -204,6 +215,10 @@ class Rule:
     materials_exclude: str | None = None
     keywords_exclude: str | None = None   # regex по назві
     max_age_hours: float | None = None    # ігнорувати «підняті» старі оголошення
+    package: str = DEFAULT_PACKAGE        # пакет частоти опитування (settings.packages)
+    title_include: str | None = None      # regex по назві (дешево, без картки): саб-лейбли «rrl|double rl»
+    text: str | None = None               # серверний текстовий пошук (для брендів, яких на Shafa немає)
+    reseller_filter: bool = True          # відсіювати мультирозмірні «нові» оголошення, репліки, опт
 
     @property
     def brandless(self) -> bool:
@@ -228,7 +243,7 @@ class Rule:
         де вони звужують catalogSlug)."""
         k = {"catalog": self.catalog, "sizes": sorted(self.sizes), "cond": self.min_condition,
              "max_price": self.max_price, "min_price": self.min_price, "materials": sorted(self.materials),
-             "brandless": self.brandless}
+             "brandless": self.brandless, "package": self.package, "text": self.text}
         return hashlib.sha1(json.dumps(k, sort_keys=True).encode()).hexdigest()[:12]
 
     @property
@@ -256,6 +271,10 @@ class Group:
     def server(self) -> Rule:
         return self.rules[0]  # серверні фільтри однакові для всіх правил групи
 
+    @property
+    def package(self) -> str:
+        return self.server.package
+
     def label(self, limit: int = 4) -> str:
         names = list(dict.fromkeys(r.label for r in self.rules))
         return ", ".join(names[:limit]) + (f" +{len(names) - limit}" if len(names) > limit else "")
@@ -266,6 +285,10 @@ class Config:
     rules: list[Rule]
     settings: dict
     category_materials: list[CategoryMaterials] = field(default_factory=list)
+    measurements: dict = field(default_factory=dict)
+
+    def interval_min(self, package: str) -> float:
+        return float((self.settings.get("packages") or {}).get(package, 10))
 
     @property
     def enabled(self) -> list[Rule]:
@@ -402,7 +425,7 @@ def _check_keys(d: dict, allowed: set[str], where: str) -> None:
 def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> Rule:
     section = fields.get("section")
     where = label
-    for rx in ("materials_include", "materials_exclude", "keywords_exclude"):
+    for rx in ("materials_include", "materials_exclude", "keywords_exclude", "title_include"):
         if fields.get(rx):
             try:
                 re.compile(fields[rx])
@@ -416,6 +439,8 @@ def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> R
         min_price=fields.get("min_price"), materials=resolve_materials(fields.get("materials"), where),
         materials_include=fields.get("materials_include"), materials_exclude=fields.get("materials_exclude"),
         keywords_exclude=fields.get("keywords_exclude"), max_age_hours=fields.get("max_age_hours"),
+        package=str(fields.get("package") or DEFAULT_PACKAGE), title_include=fields.get("title_include"),
+        text=fields.get("text"), reseller_filter=bool(fields.get("reseller_filter", True)),
     )
 
 
@@ -436,7 +461,8 @@ def load(path: str | Path) -> Config:
 
 def loads(text: str) -> Config:
     raw = yaml.safe_load(text) or {}
-    _check_keys(raw, {"settings", "my_sizes", "defaults", "brands", "searches", "category_materials"}, "brands.yaml")
+    _check_keys(raw, {"settings", "my_sizes", "defaults", "brands", "searches", "category_materials", "measurements"},
+                "brands.yaml")
     settings = raw.get("settings") or {}
     defaults = dict(raw.get("defaults") or {})
     _check_keys(defaults, set(FILTER_KEYS), "defaults")
@@ -482,10 +508,14 @@ def loads(text: str) -> Config:
         fields = {**defaults, **{k: v for k, v in s.items() if k in FILTER_KEYS}}
         fields["sizes"] = merge_size_specs(defaults.get("sizes"), s.get("sizes"))
         rule = _build(fields, label, {}, bool(s.get("enabled", True)))
-        if not (rule.categories or rule.materials or rule.max_price):
+        if not (rule.categories or rule.materials or rule.max_price or rule.text):
             raise ConfigError(f"{label}: пошук без бренду без категорій, матеріалу й ціни — це увесь сайт. "
                               f"Звузь його.")
         rules.append(rule)
+    packages = settings.get("packages") or {}
+    for r in rules:
+        if packages and r.package not in packages:
+            raise ConfigError(f"{r.label}: невідомий пакет «{r.package}». Є: {', '.join(packages)}")
     section = defaults.get("section")
     cms = []
     for cat, spec in (raw.get("category_materials") or {}).items():
@@ -499,7 +529,11 @@ def loads(text: str) -> Config:
         cms.append(CategoryMaterials(str(cat), resolve_categories([cat], section, where),
                                      resolve_material_names(spec.get("only"), where),
                                      resolve_material_names(spec.get("prefer"), where), unknown))
-    return Config(rules, settings, cms)
+    meas = raw.get("measurements") or {}
+    _check_keys(meas, {"waist_half_min", "length_min", "inseam_min", "insole"}, "measurements")
+    if meas.get("insole") and (not isinstance(meas["insole"], list) or len(meas["insole"]) != 2):
+        raise ConfigError("measurements.insole: потрібно [від, до], напр. [28.5, 30]")
+    return Config(rules, settings, cms, meas)
 
 
 _TRANS = str.maketrans({"ø": "o", "Ø": "o", "æ": "ae", "Æ": "ae", "ß": "ss", "œ": "oe", "đ": "d", "ł": "l"})
@@ -550,6 +584,10 @@ def quick_check(item: dict, rule: Rule) -> str | None:
         age = _age_hours(item.get("createdAt"))
         if age is not None and age > float(rule.max_age_hours):
             return f"старе оголошення ({age:.0f} год)"
+    if rule.title_include and not re.search(rule.title_include, item.get("name") or "", re.I):
+        return "немає потрібної фрази в назві"
+    if rule.reseller_filter and RESELLER_RX.search(item.get("name") or ""):
+        return "схоже на перекупника/репліку"
     if rule.keywords_exclude and re.search(rule.keywords_exclude, item.get("name") or "", re.I):
         return "виключене слово в назві"
     if (item.get("statusTitle") or "AVAILABLE") != "AVAILABLE":
@@ -583,4 +621,66 @@ def detail_check(item: dict, details: dict | None, rule: Rule) -> str | None:
         return "немає потрібного матеріалу"
     if rule.materials_exclude and re.search(rule.materials_exclude, text, re.I):
         return "виключений матеріал"
+    return None
+
+
+# ---------------------------------------------------------------------------------------------
+# Мірки з опису (продавці часто пишуть «пояс 46 см», «довжина 108», «устілка 29 см»).
+# Немає мірок — річ проходить; є і не підходять — відсіюємо.
+_NUM = r"(\d{2,3}(?:[.,]\d)?)"
+_WAIST = re.compile(r"(?:\bпояс\w*|\bталі[яїю]|\bталия|\bпот\b|напівобхват\w*\s+талії|обхват\w*\s+талії|\bwaist)"
+                    r"\D{0,20}?" + _NUM, re.I)
+_INSEAM = re.compile(r"(?:внутрішн\w*\s+(?:шв\w*|довжин\w*)|по\s+внутр\w*(?:\s+шв\w*)?|довжин\w*\s+(?:по\s+)?(?:кроку|внутр\w*)"
+                     r"|\bкрок\w*|\binseam|по\s+шагу)\D{0,20}?" + _NUM, re.I)
+_LENGTH = re.compile(r"(?:\bдовжин\w*|\bдлин\w*|\blength|загальн\w*\s+довжин\w*)(?!\s+(?:по\s+)?(?:кроку|внутр|шагу))"
+                     r"\D{0,20}?" + _NUM, re.I)
+_L_INCH = re.compile(r"\b[wW]\s?\d{2}\s*[/xх×\s]\s*[lL]\s?(\d{2})\b")
+_INSOLE = re.compile(r"(?:устілк\w*|устiлк\w*|стельк\w*|\binsole|по\s+устілці)\D{0,15}?(\d{2}(?:[.,]\d)?)", re.I)
+_CM = re.compile(r"\b(2[2-9]|3[0-3])(?:[.,](\d))?\s*см\b", re.I)
+
+
+def _f(x: str) -> float:
+    return float(x.replace(",", "."))
+
+
+def measure_check(item: dict, details: dict | None, m: dict | None) -> str | None:
+    if not m:
+        return None
+    slug = item.get("catalogSlug") or ""
+    text = (item.get("name") or "") + "\n" + ((details or {}).get("description") or "")
+    if slug.startswith("shtany-i-shorty/") or slug.startswith("sport-i-otdyh/sportivnyye-shtany"):
+        wmin = m.get("waist_half_min")
+        if wmin:
+            for g in _WAIST.findall(text):
+                v = _f(g)
+                half = v / 2 if v >= 70 else v                 # 88 см — повний обхват, 44 — напівобхват
+                if 30 <= half <= 70 and half < float(wmin) - 0.5:
+                    return f"пояс {g} см" + (f" (≈{half:g} напівобхват)" if v >= 70 else "") + f", треба від {wmin}"
+                if 30 <= half <= 70:
+                    break
+        if not slug.endswith("/shorty") and not slug.endswith("/bridzhi"):
+            lmin, imin = m.get("length_min"), m.get("inseam_min")
+            for g in (_LENGTH.findall(text) if lmin else []):
+                v = _f(g)
+                if 80 <= v <= 130:
+                    if v < float(lmin) - 1:
+                        return f"довжина {g} см (треба від {lmin})"
+                    break
+            if imin:
+                for g in _INSEAM.findall(text):
+                    v = _f(g)
+                    if 60 <= v <= 100:
+                        if v < float(imin) - 1:
+                            return f"довжина по внутрішньому шву {g} см (треба від {imin})"
+                        break
+                inch = _L_INCH.search(text)
+                if inch and 26 <= int(inch.group(1)) <= 38 and int(inch.group(1)) * 2.54 < float(imin) - 1:
+                    return f"L{inch.group(1)} ≈ {int(inch.group(1)) * 2.54:.0f} см по внутрішньому шву (треба від {imin})"
+    if slug.startswith("obuv/") and m.get("insole"):
+        lo, hi = (float(x) for x in m["insole"])
+        # усі згадані мірки (і «устілка 29», і «45р 29см»): суперечать одна одній — річ проходить
+        vals = [_f(g) for g in _INSOLE.findall(text)] + [_f(a + ("." + b if b else "")) for a, b in _CM.findall(text)]
+        vals = [v for v in vals if 22 <= v <= 33]
+        if vals and not any(lo <= v <= hi for v in vals):
+            return f"устілка {vals[0]:g} см (треба {lo:g}–{hi:g})"
     return None

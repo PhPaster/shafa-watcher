@@ -18,6 +18,7 @@ class State:
         self.groups: dict[str, dict] = data.get("groups", {})      # base key -> {"brands": [готові id], "since": ts}
         self.health: dict = data.get("health", {})
         self.stats: dict = data.get("stats", {})
+        self.titles: dict[str, float] = data.get("titles", {})     # назва+ціна надісланих (антиповтор)
 
     # --- дедуплікація ---
     def is_seen(self, pid) -> bool:
@@ -25,6 +26,12 @@ class State:
 
     def mark(self, pid) -> None:
         self.seen[str(pid)] = time.time()
+
+    def title_seen(self, key: str, days: float = 7) -> bool:
+        return time.time() - self.titles.get(key, 0) < days * 86400
+
+    def mark_title(self, key: str) -> None:
+        self.titles[key] = time.time()
 
     def ready(self, key: str, brand_id: int | None) -> bool:
         """Чи група вже ініціалізована для цього бренду (None = пошук без бренду).
@@ -46,6 +53,7 @@ class State:
     def prune(self, active_keys: set[str]) -> None:
         cutoff = time.time() - SEEN_TTL_DAYS * 86400
         self.seen = {k: v for k, v in self.seen.items() if v >= cutoff}
+        self.titles = {k: v for k, v in self.titles.items() if v >= time.time() - 7 * 86400}
         self.groups = {k: v for k, v in self.groups.items() if k in active_keys}
 
     def prune_brands(self, active: dict[str, set[int]]) -> None:
@@ -58,6 +66,6 @@ class State:
     def save(self) -> None:
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps({"seen": self.seen, "groups": self.groups, "health": self.health,
-                                   "stats": self.stats}, ensure_ascii=False, separators=(",", ":")),
+                                   "stats": self.stats, "titles": self.titles}, ensure_ascii=False, separators=(",", ":")),
                        encoding="utf-8")
         tmp.replace(self.path)

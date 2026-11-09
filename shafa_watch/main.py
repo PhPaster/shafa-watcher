@@ -124,7 +124,7 @@ def fetch_group(shafa: Shafa, g: rules.Group, state: State, st: dict, demo: bool
         batch, has_next = shafa.products(
             brands=g.brand_ids or None, catalog=r.catalog, sizes=r.sizes, conditions=r.conditions,
             price_to=r.max_price, price_from=r.min_price, characteristics=r.materials,
-            first=per_page, page=page)
+            first=per_page, page=page, search_text=r.text)
         items += batch
         # Далі гортаємо лише якщо вся сторінка нова (великий потік між запусками).
         if not (ready and has_next and batch and all(not state.is_seen(i["id"]) for i in batch)):
@@ -150,6 +150,25 @@ def demo_order(ids: list[int], found: dict, sources: dict) -> list[int]:
     return out
 
 
+def select_due(groups: list[rules.Group], cfg: rules.Config, state: State) -> list[rules.Group]:
+    """Пакети з інтервалом ≤10 хв — щоразу. Повільніші — коли настав їхній час, але не більше
+    settings.max_slow_requests_per_run за прохід (найбільш прострочені першими), щоб прохід лишався коротким."""
+    now = time.time()
+    last = state.health.setdefault("group_last", {})
+    fast, slow = [], []
+    for g in groups:
+        interval = cfg.interval_min(g.package)
+        if interval <= 10:
+            fast.append(g)
+            continue
+        age_min = (now - last.get(g.id, 0)) / 60
+        if age_min >= interval - 2:            # допуск на запізнення cron
+            slow.append((age_min / interval, g))
+    slow.sort(key=lambda x: -x[0])
+    budget = int(cfg.settings.get("max_slow_requests_per_run", 6))
+    return fast + [g for _, g in slow[:budget]]
+
+
 def run(args) -> int:
     state = State(args.state)
     tg = Telegram(os.getenv("TG_TOKEN"), os.getenv("TG_CHAT"), dry_run=args.dry_run)
@@ -167,6 +186,9 @@ def run(args) -> int:
     st = cfg.settings
     health = Health(state, tg)
     groups = cfg.groups()
+    due = select_due(groups, cfg, state)
+    if len(due) < len(groups):
+        log.info("за розкладом пакетів: %d з %d груп", len(due), len(groups))
     photos_n = int(st.get("photos", 3))
 
     # пауза між запусками (GitHub cron може запізнюватися)
@@ -181,7 +203,7 @@ def run(args) -> int:
     sources: dict[int, list[rules.Group]] = {}
     ok_groups: list[rules.Group] = []
     failed = 0
-    for g in groups:
+    for g in due:
         try:
             items = fetch_group(shafa, g, state, st, bool(args.demo))
         except ShafaError as e:
@@ -197,6 +219,7 @@ def run(args) -> int:
                 health.alert(f"group:{g.id}", f"запит [{g.label()}] падає {fails[g.id]} рази поспіль: {e}")
             continue
         ok_groups.append(g)
+        state.health.setdefault("group_last", {})[g.id] = time.time()
         state.health.setdefault("group_fails", {})[g.id] = 0
         health.resolve(f"group:{g.id}", f"запит [{g.label()}] знову працює")
 
@@ -258,6 +281,7 @@ def run(args) -> int:
         priority, mats = None, []
         if passing:
             mreason, priority, mats = rules.material_check(item, d, cfg.category_materials)
+            mreason = mreason or rules.measure_check(item, d, cfg.measurements)
             if mreason:
                 reasons.append(mreason)
                 passing = []
@@ -267,6 +291,11 @@ def run(args) -> int:
                 state.mark(pid)
             continue
         rule = passing[0]
+        tkey = f"{rules.norm(item.get('name') or '')[:60]}|{int(float(item.get('price') or 0))}"
+        if not args.demo and state.title_seen(tkey):
+            log.info("  пропуск %s «%s»: повтор назви й ціни за 7 днів", pid, item.get("name"))
+            state.mark(pid)
+            continue
         caption, photos, url = build_caption(item, d, rule, priority=priority, found_materials=mats)
         try:
             tg.listing(caption, photos[:photos_n], url, silent=priority is False)
@@ -282,18 +311,19 @@ def run(args) -> int:
                 break
         else:
             state.mark(pid)
+            state.mark_title(tkey)
             health.resolve("telegram", "Telegram знову приймає повідомлення")
 
     health.count("new_ids", considered)
     health.count("notified", notified)
     health.count("requests", shafa.requests_made)
-    if groups and failed == len(groups):
+    if due and failed == len(due):
         health.alert("all_failed", "усі запити до Shafa впали в цьому запуску")
     elif failed == 0:
         health.resolve("all_failed", "запити до Shafa знову працюють")
         health.resolve("blocked", "Shafa знову відповідає нормально")
 
-    if not args.demo and os.getenv("GITHUB_EVENT_NAME") == "schedule" and not state.health.get("schedule_started"):
+    if not args.demo and os.getenv("GITHUB_EVENT_NAME") in ("schedule", "workflow_dispatch") and not state.health.get("schedule_started"):
         try:
             tg.text(f"🚀 <b>Shafa Watcher запущено</b> за розкладом (кожні 10 хв).\n"
                     f"Брендів: {cfg.brand_count}, правил: {len(cfg.enabled)}, запитів за прохід: {len(groups)}.\n"
@@ -312,11 +342,13 @@ def run(args) -> int:
         for g in groups:
             active.setdefault(g.key, set()).update(g.brand_ids)
         state.prune(set(active))
+        live = {g.id for g in groups}
+        state.health["group_last"] = {k: v for k, v in state.health.get("group_last", {}).items() if k in live}
         state.prune_brands(active)
         state.save()
     log.info("готово: груп %d, помилок %d, розглянуто нових %d, надіслано %d, запитів до Shafa %d",
              len(groups), failed, considered, notified, shafa.requests_made)
-    return 1 if groups and failed == len(groups) else 0
+    return 1 if due and failed == len(due) else 0
 
 
 def main(argv=None) -> int:
