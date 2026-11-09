@@ -1,9 +1,14 @@
 name: shafa-watch
 
 on:
-  # Запуск кожні 10 хв робить зовнішній тригер Google Apps Script (tools/trigger.gs) через workflow_dispatch:
-  # розклад GitHub (schedule) запізнювався на 40+ хв і не стартував узагалі. Не додавай schedule назад,
-  # не вимкнувши тригер: два джерела = ~$17.8/міс, більше за безкоштовні $12 (README → «Ліміти й вартість»).
+  # Самозапуск — три шари (README → «Самозапуск»):
+  #   1. Google Apps Script (tools/trigger.gs) — workflow_dispatch кожні 10 хв, + сторож у Telegram;
+  #   2. Cloudflare Worker (tools/cloudflare-worker.js) — workflow_dispatch кожні 10 хв;
+  #   3. цей розклад — раз на 2 год, але перевірка йде, лише якщо 1 і 2 мовчать 15+ хв (задача gate).
+  # Зовнішні тригери мають замок (останній запуск < 9 хв тому → пропуск), тож запусків ~1 на 10 хв.
+  # Розклад GitHub частіше не ставити: кожен його запуск — щонайменше 1 хв задачі gate (квота $12/міс).
+  schedule:
+    - cron: "41 */2 * * *"
   workflow_dispatch:
     inputs:
       demo:
@@ -12,13 +17,48 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: shafa-watch
   cancel-in-progress: false
 
 jobs:
+  # Лише для розкладу GitHub (резервний шар): чи були запуски від зовнішніх тригерів за останні 15 хв.
+  gate:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-slim
+    timeout-minutes: 2
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          from datetime import datetime, timezone
+          req = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/workflows/watch.yml/runs?per_page=10",
+              headers={"Authorization": f"Bearer {os.environ['GH_TOKEN']}", "Accept": "application/vnd.github+json"})
+          runs = [r for r in json.load(urllib.request.urlopen(req, timeout=20))["workflow_runs"]
+                  if str(r["id"]) != os.environ["GITHUB_RUN_ID"]]
+          now = datetime.now(timezone.utc)
+          age = min(((now - datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))).total_seconds() / 60
+                     for r in runs), default=1e9)
+          run = age >= 15
+          print(f"останній інший запуск {age:.0f} хв тому → {'зовнішні тригери мовчать, запускаю перевірку' if run else 'резерв не потрібен'}")
+          if run:
+              print("::warning::зовнішні тригери (Apps Script, Cloudflare) не запускали воркфлоу 15+ хв — спрацював резерв GitHub")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"run={'1' if run else '0'}\n")
+          PY
+
   watch:
+    needs: gate
+    # dispatch: gate пропущено → запуск; schedule: якщо gate сказав run=1 або сам упав (краще зайвий запуск, ніж жодного).
+    if: ${{ !cancelled() && (needs.gate.result != 'success' || needs.gate.outputs.run == '1') }}
     # ubuntu-slim: 1 vCPU, найдешевший раннер ($0.002/хв проти $0.006 у ubuntu-latest).
     runs-on: ubuntu-slim
     timeout-minutes: 8
