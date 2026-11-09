@@ -138,6 +138,13 @@ class Shafa:
         p = data["products"]
         return [e["node"] for e in p["edges"]], bool(p["pageInfo"]["hasNextPage"])
 
+    def find_brands(self, name: str, first: int = 20) -> list[dict]:
+        """Пошук бренду за підрядком назви (запит фільтра брендів сайту, без урахування діакритики).
+        Увага: знаходить не всі бренди — частину видно лише в товарах (див. docs/brand_survey.md)."""
+        data = self._post("SearchBrands", "query SearchBrands($n: String) { filterBrand(name: $n, first: %d) "
+                                          "{ id name } }" % int(first), {"n": name})
+        return data.get("filterBrand") or []
+
     def details(self, product_id: int) -> dict | None:
         data = self._post("WEB_ProductDetailsPageProduct", DETAILS_QUERY, {"productId": int(product_id)})
         return data.get("productDetails")

@@ -9,7 +9,10 @@ import sys
 import time
 from zoneinfo import ZoneInfo
 
+from pathlib import Path
+
 from . import rules
+from .bot import Bot
 from .shafa import Shafa, ShafaError, absolute_url
 from .state import State
 from .telegram import Telegram, esc
@@ -147,13 +150,20 @@ def demo_order(ids: list[int], found: dict, sources: dict) -> list[int]:
 
 
 def run(args) -> int:
-    cfg = rules.load(args.config)
     state = State(args.state)
     tg = Telegram(os.getenv("TG_TOKEN"), os.getenv("TG_CHAT"), dry_run=args.dry_run)
     if tg.dry_run:
         log.warning("TG_TOKEN/TG_CHAT не задані або --dry-run: повідомлення лише в лог")
+    shafa = Shafa(min_delay=float((rules.load(args.config).settings or {}).get("request_delay_sec", 1.5)))
+
+    # Команди з Telegram (/add, /remove, /condition, /sizes…) змінюють brands.yaml до запитів.
+    if not args.demo:
+        changes = Bot(tg, args.config, state, shafa).process()
+        if changes:
+            log.info("бот змінив brands.yaml: %s", "; ".join(changes))
+            Path(args.config).with_name(".bot_changes").write_text("\n".join(changes), encoding="utf-8")
+    cfg = rules.load(args.config)
     st = cfg.settings
-    shafa = Shafa(min_delay=float(st.get("request_delay_sec", 1.5)))
     health = Health(state, tg)
     groups = cfg.groups()
     photos_n = int(st.get("photos", 3))

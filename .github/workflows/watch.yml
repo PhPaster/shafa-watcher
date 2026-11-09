@@ -45,6 +45,19 @@ jobs:
           TG_CHAT: ${{ secrets.TG_CHAT }}
         run: python3 -m shafa_watch --demo "${{ github.event.inputs.demo || '0' }}"
 
+      - name: Зберегти зміни з Telegram у brands.yaml
+        if: always() && hashFiles('.bot_changes') != ''
+        run: |
+          git config user.name "shafa-watch-bot"
+          git config user.email "shafa-watch-bot@users.noreply.github.com"
+          git add brands.yaml
+          git commit -qm "Бот: $(paste -sd ';' .bot_changes)"
+          for i in 1 2 3; do
+            git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0
+            sleep 5
+          done
+          echo "::error::не вдалося запушити brands.yaml"; exit 1
+
       - name: Зберегти стан у гілку state
         if: always() && hashFiles('state.json') != ''
         run: |

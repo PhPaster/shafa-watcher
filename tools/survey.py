@@ -19,19 +19,10 @@ import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from shafa_watch.rules import _TRANS, norm  # noqa: E402
 from shafa_watch.shafa import Shafa  # noqa: E402
 
 DELAY = 2.0
-_TRANS = str.maketrans({"ø": "o", "Ø": "o", "æ": "ae", "Æ": "ae", "ß": "ss", "œ": "oe", "đ": "d", "ł": "l"})
-
-
-def norm(s: str) -> str:
-    s = unicodedata.normalize("NFKD", s.translate(_TRANS))
-    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
-    s = s.replace("&", " and ").replace("+", " plus ")
-    return re.sub(r"[^0-9a-z]+", "", s)
-
-
 def gql_str(s: str) -> str:
     return json.dumps(s, ensure_ascii=False)
 

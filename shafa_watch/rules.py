@@ -15,6 +15,7 @@ import datetime as dt
 import hashlib
 import json
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -350,7 +351,11 @@ def _brand_ids(b: dict) -> list[int]:
 
 
 def load(path: str | Path) -> Config:
-    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    return loads(Path(path).read_text(encoding="utf-8"))
+
+
+def loads(text: str) -> Config:
+    raw = yaml.safe_load(text) or {}
     _check_keys(raw, {"settings", "my_sizes", "defaults", "brands", "searches"}, "brands.yaml")
     settings = raw.get("settings") or {}
     defaults = dict(raw.get("defaults") or {})
@@ -402,6 +407,17 @@ def load(path: str | Path) -> Config:
                               f"Звузь його.")
         rules.append(rule)
     return Config(rules, settings)
+
+
+_TRANS = str.maketrans({"ø": "o", "Ø": "o", "æ": "ae", "Æ": "ae", "ß": "ss", "œ": "oe", "đ": "d", "ł": "l"})
+
+
+def norm(s: str) -> str:
+    """Назва бренду для порівняння: без регістру, діакритики й розділових знаків («Fjällräven» = «fjallraven»)."""
+    s = unicodedata.normalize("NFKD", str(s).translate(_TRANS))
+    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    s = s.replace("&", " and ").replace("+", " plus ")
+    return re.sub(r"[^0-9a-zа-яіїєґ]+", "", s)
 
 
 # ---------------------------------------------------------------------------------------------

@@ -51,6 +51,9 @@ class FakeTelegram:
     def text(self, t):
         pass
 
+    def call(self, method, payload, with_chat=True):
+        return {"ok": True, "result": []}
+
 
 def write(tmp: Path, body: str) -> Path:
     p = tmp / "brands.yaml"

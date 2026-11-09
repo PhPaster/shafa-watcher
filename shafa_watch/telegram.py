@@ -17,13 +17,18 @@ class Telegram:
         self.dry_run = dry_run or not (token and chat_id)
         self.sent = 0
 
-    def _call(self, method: str, payload: dict) -> dict:
+    def call(self, method: str, payload: dict, with_chat: bool = True) -> dict:
+        """Будь-який метод Bot API. with_chat=False — для методів без chat_id (getUpdates, setMyCommands…)."""
+        return self._call(method, payload, with_chat)
+
+    def _call(self, method: str, payload: dict, with_chat: bool = True) -> dict:
         if self.dry_run:
             log.info("[dry-run] %s %s", method, {k: v for k, v in payload.items() if k != "chat_id"})
             return {"ok": True}
         url = f"https://api.telegram.org/bot{self.token}/{method}"
+        body = {"chat_id": self.chat_id, **payload} if with_chat else payload
         for attempt in range(4):
-            r = requests.post(url, json={"chat_id": self.chat_id, **payload}, timeout=30)
+            r = requests.post(url, json=body, timeout=30)
             j = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
             if r.status_code == 429:
                 time.sleep(int(j.get("parameters", {}).get("retry_after", 5)) + 1)
