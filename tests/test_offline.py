@@ -196,6 +196,15 @@ brands:
         main.run(args)
         self.assertEqual(len(FakeTelegram.sent), 2, "повторне довантаження не дублює надіслане")
 
+    def test_manual_backfill_longer_than_max_age(self):
+        cfg = write(self.tmp, BASE.format(extra=""))
+        FakeShafa.catalog.append(item(40, 1, "shtany-i-shorty/dzhinsy", 90, name="джинси 90 год"))
+        self.run_once(cfg)
+        args = argparse.Namespace(config=str(cfg), state=str(self.tmp / "state.json"), dry_run=False, demo=0,
+                                  backfill=96)
+        main.run(args)
+        self.assertIn("/uk/item/40", FakeTelegram.sent, "96 год > max_age_hours 72 — не «старе»")
+
     def test_same_title_and_price_sent_once(self):
         cfg = write(self.tmp, BASE.format(extra=""))
         self.run_once(cfg)

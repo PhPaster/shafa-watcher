@@ -242,8 +242,13 @@ def run(args) -> int:
     cfg = rules.load(args.config)
     st = cfg.settings
     health = Health(state, tg)
-    groups = cfg.groups()
     force_bf = float(getattr(args, "backfill", 0) or 0)               # разове довантаження всіх брендів за N годин
+    if force_bf:
+        # довантаження за N год не має відсікати речі як «старі» за max_age_hours (72) правила
+        for r in cfg.rules:
+            if r.max_age_hours is not None and float(r.max_age_hours) < force_bf:
+                r.max_age_hours = force_bf
+    groups = cfg.groups()
     backfill_h = force_bf or float(st.get("backfill_hours", 0) or 0)   # перший прохід нового бренду
     due = groups if force_bf else select_due(groups, cfg, state)
     if len(due) < len(groups):
