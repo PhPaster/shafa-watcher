@@ -111,7 +111,7 @@ MEN_SERVER_PARENTS = {"kofti": "kofti", "kofty": "kofti", "obuv": "obuv", "futbo
 FILTER_KEYS = ("section", "sizes", "categories", "min_condition", "max_price", "min_price", "materials",
                "materials_include", "materials_exclude", "keywords_exclude", "max_age_hours",
                "package", "title_include", "text", "reseller_filter", "seller",
-               "also_categories", "title_in_description", "material_rules")
+               "also_categories", "title_in_description", "material_rules", "characteristics")
 DEFAULT_PACKAGE = "звичайні"
 # Продавець — характеристика 1757 «Продавець» (однакова в усіх категоріях, перевірено 9.11.2026):
 # 10290 «Приватний», 10291 «Бізнес та інші». «Бізнес та інші» — це й магазини (нові репліки «s-xxl»), і люди,
@@ -261,6 +261,8 @@ class Rule:
     category_map: dict[str, list[str]] = field(default_factory=dict)  # назва категорії правила → slug-и
     title_in_description: bool = False    # title_include шукати ще й в описі (потрібна картка): «Uniqlo U»
     material_rules: bool = True           # false — category_materials (лише/пріоритет) не діють: Asics
+    characteristics: list[int] = field(default_factory=list)  # інші характеристики (серверний фільтр, І з матеріалом):
+                                                               # «Стать: для чоловіків» шапок 2418
 
     @property
     def brandless(self) -> bool:
@@ -288,6 +290,8 @@ class Rule:
              "brandless": self.brandless, "package": self.package, "text": self.text}
         if self.seller != "any":           # «any» не входить у ключ, щоб старі групи не перезапускались
             k["seller"] = self.seller
+        if self.characteristics:
+            k["chars"] = sorted(self.characteristics)
         return hashlib.sha1(json.dumps(k, sort_keys=True).encode()).hexdigest()[:12]
 
     @property
@@ -299,7 +303,7 @@ class Rule:
     def variants(self) -> list[tuple[list[int], list[int]]]:
         """Серверні варіанти запиту (стани, характеристики) — йдуть одним HTTP-запитом через аліаси.
         private_new: вживані без фільтра продавця + нові лише від приватних."""
-        conds, chars = self.conditions, list(self.materials)
+        conds, chars = self.conditions, sorted(set(self.materials) | set(self.characteristics))
         priv = sorted(set(chars) | {SELLER_PRIVATE})
         if self.seller == "private":
             return [(conds, priv)]
@@ -514,6 +518,7 @@ def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> R
         categories=list(dict.fromkeys(s for pats in cat_map.values() for s in pats)),
         category_map=cat_map, title_in_description=bool(fields.get("title_in_description", False)),
         material_rules=bool(fields.get("material_rules", True)),
+        characteristics=_int_list(fields.get("characteristics"), f"{where}: characteristics"),
         min_condition=fields.get("min_condition"), max_price=fields.get("max_price"),
         min_price=fields.get("min_price"), materials=resolve_materials(fields.get("materials"), where),
         materials_include=fields.get("materials_include"), materials_exclude=fields.get("materials_exclude"),
@@ -522,6 +527,13 @@ def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> R
         text=fields.get("text"), reseller_filter=bool(fields.get("reseller_filter", True)),
         seller=resolve_seller(fields.get("seller"), where),
     )
+
+
+def _int_list(v, where: str) -> list[int]:
+    try:
+        return [int(x) for x in _as_list(v)]
+    except (TypeError, ValueError):
+        raise ConfigError(f"{where}: очікую список id (чисел)")
 
 
 def _as_list(v) -> list:
@@ -595,9 +607,16 @@ def loads(text: str) -> Config:
         fields = {**defaults, **{k: v for k, v in s.items() if k in FILTER_KEYS and k != "also_categories"}}
         fields.pop("also_categories", None)
         fields["sizes"] = merge_size_specs(defaults.get("sizes"), s.get("sizes"))
-        if s.get("brands") not in (None, "all", "усі"):
-            raise ConfigError(f"{label}: brands у пошуку може бути лише all (усі бренди зі списку)")
-        sbrands = dict(all_brands) if s.get("brands") else {}
+        sb = s.get("brands")
+        if sb in ("all", "усі"):
+            sbrands = dict(all_brands)
+        elif isinstance(sb, list) and sb:
+            ids = _int_list(sb, f"{label}: brands")
+            sbrands = {i: all_brands.get(i, str(i)) for i in ids}
+        elif sb is None:
+            sbrands = {}
+        else:
+            raise ConfigError(f"{label}: brands у пошуку — all (усі бренди зі списку) або список id")
         rule = _build(fields, label, sbrands, bool(s.get("enabled", True)))
         if not sbrands and not (rule.categories or rule.materials or rule.max_price or rule.text):
             raise ConfigError(f"{label}: пошук без бренду без категорій, матеріалу й ціни — це увесь сайт. "

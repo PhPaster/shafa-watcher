@@ -43,6 +43,7 @@ measurements:
 category_materials:
   светри: {only: [вовна, кашемір, альпака, ангора], except: [худі]}
   взуття: {prefer: [шкіра, замша, нубук]}
+  піжами: {prefer: [бавовна, льон, шовк, вовна, кашемір]}
 
 # За замовчуванням для всіх брендів і пошуків (кожен може перевизначити).
 defaults:
@@ -93,10 +94,6 @@ brands:
     package: гарячі
     categories: [верхній одяг, піджаки]
     title_include: "westbury|canda"
-  - name: "C.P. Company"   # верхній одяг, трикотаж
-    id: 45014
-    package: гарячі
-    categories: [верхній одяг, светри, футболки]
   - name: "Calvin Klein"
     id: 197
     package: гарячі
@@ -307,10 +304,6 @@ brands:
     id: 2105
     package: гарячі
     categories: [верхній одяг, сорочки]
-  - name: "Stone Island"   # верхній одяг, трикотаж, овердай
-    id: 44431
-    package: гарячі
-    categories: [верхній одяг, светри, футболки]
   - name: "The North Face"
     id: 3926
     package: гарячі
@@ -2507,13 +2500,17 @@ searches:
     materials: [вовна, кашемір, альпака]
     title_include: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel
   - name: Піжами
-    categories: [піжами]
-    keywords_exclude: жіноч|женск|дитяч|детск|новорічн|новогод|різдв|фліс|флис|махр|кігурум|кигурум|пікачу|пикачу
+    # лише якісні бренди (10.11.2026): Marks & Spencer, M&S, Polo Ralph Lauren, Ralph Lauren, Zimmerli of Switzerland, Calida, Hanro, Derek Rose, Schiesser, Mey, Novila, Sunspel, Brooks Brothers, Charles Tyrwhitt, Tommy Hilfiger, Hugo Boss, Boss, Calvin Klein, Paul Smith, Hackett, Gant, Lacoste, Pringle of Scotland, Seidensticker, Lands' End, GAP, Muji, John Lewis, Jockey
+    brands: [734, 18142, 143, 47965, 47373, 44396, 46148, 59402, 46233, 48935, 101710, 49854, 45906, 44434, 159, 324, 46341, 197, 2471, 44897, 2850, 84, 46895, 44818, 4423, 57, 46141, 3193, 47254]
+    section: odezhda-dlia-doma-i-sna/pizhamy
+    sizes: [150, 151]  # L, XL (id одягу чоловічого розділу працюють і тут)
+    keywords_exclude: жіноч|женск|дитяч|детск|новорічн|новогод|різдв|фліс|флис|плюш|махр|кігурум|кигурум|пікачу|пикачу
   - name: Шапки
     brands: all
     section: holovni-ubory/shapky
     sizes: [320, 321, 327]
     materials: [1602, 1588, 13038]
+    characteristics: [2418]  # «Стать: для чоловіків» (84 → 2418): жіночі й дитячі не приходять
     keywords_exclude: жіноч|женск|дитяч|детск|для дівч
     package: тихі
   - name: Woolmark

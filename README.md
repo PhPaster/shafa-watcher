@@ -120,9 +120,12 @@ searches:
     section: holovni-ubory/shapky   # шапки — не в розділі men; slug перевірено 10.11.2026
     sizes: [320, 321, 327]          # XL/59, XXL/60, One size (python tools/lookup.py sizes holovni-ubory/shapky)
     materials: [1602, 1588, 13038]  # вовна, кашемір, ангора — id матеріалів шапок інші, альпаки немає
+    characteristics: [2418]         # «Стать: для чоловіків» — серверний фільтр, І з матеріалом
     keywords_exclude: жіноч|женск|дитяч|детск|для дівч
     package: тихі
 ```
+
+`brands` у пошуку може бути й списком id — так зроблено «Піжами» (лише якісні бренди: M&S, Polo Ralph Lauren, Zimmerli, Calida, Hanro, Derek Rose, Schiesser, Mey, Novila, Sunspel…; `section: odezhda-dlia-doma-i-sna/pizhamy`, `sizes: [150, 151]`). Натуральні тканини піжам — пріоритет (`category_materials.піжами.prefer`): зі ⭐ і звуком, решта тихо.
 
 ### Матеріали за категоріями
 
@@ -161,7 +164,8 @@ category_materials:
 | `also_categories` | категорії, що додаються до `categories` бренду (у `defaults`: `[худі]`; `[]` — вимкнути) | локально |
 | `title_in_description` | `title_include` шукати і в описі (потрібна картка) | локально |
 | `material_rules` | `false` — `category_materials` для правила не діють | локально |
-| `brands` (лише в `searches`) | `all` — усі бренди зі списку | сервер |
+| `brands` (лише в `searches`) | `all` — усі бренди зі списку, або список id | сервер |
+| `characteristics` | інші характеристики сайту (id), серверний фільтр, І з `materials`: «Стать: для чоловіків» шапок 2418 | сервер |
 
 ## Керування з Telegram
 

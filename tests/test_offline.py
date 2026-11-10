@@ -152,13 +152,18 @@ brands:
   - {name: D, id: 4, enabled: false}
 searches:
   - {name: Лляні, categories: [сорочки]}
-  - {name: Шапки, brands: all, section: holovni-ubory/shapky, sizes: [320, 327], materials: [1602]}
+  - {name: Шапки, brands: all, section: holovni-ubory/shapky, sizes: [320, 327], materials: [1602],
+     characteristics: [2418]}
+  - {name: Піжами, brands: [1, 734], section: odezhda-dlia-doma-i-sna/pizhamy, sizes: [150, 151]}
 """)
         by = {r.label: r for r in cfg.rules}
         self.assertIn("kofti/hudi", by["A"].categories)
         self.assertEqual(by["B"].categories, [], "без категорій — і так усе")
         self.assertNotIn("kofti/hudi", by["C"].categories)
         self.assertEqual(by["Лляні"].categories, ["rubashki/rubashki"], "пошуки без бренду — без also")
+        self.assertEqual(sorted(by["Піжами"].brands), [1, 734])
+        self.assertEqual(by["Піжами"].variants(), [([], [])])
+        self.assertEqual(by["Шапки"].variants(), [([], [1602, 2418])], "матеріал І стать")
         hats = by["Шапки"]
         self.assertEqual(sorted(hats.brands), [1, 2, 3, 4], "усі бренди зі списку, і вимкнені теж")
         self.assertEqual(hats.catalog, "holovni-ubory/shapky")
