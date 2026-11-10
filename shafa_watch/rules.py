@@ -69,7 +69,11 @@ CATEGORIES: dict[str, dict[str, list[str]]] = {
         "сорочки": ["rubashki/rubashki"],
         "теніски": ["rubashki/tenniski"],
         "вишиванки": ["rubashki/vyshivanki"],
-        "светри": ["kofti/svitery", "kofti/dzhempery", "kofti/pulovery", "kofti/kardigany"],
+        # «Светри» = увесь розділ «Кофти» (як фільтр сайту за тканиною: продавці кладуть светри й у «Кофти»,
+        # «Гольфи», «Світшоти»). Разом із category_materials.светри (лише вовна…) це «вовняне з розділу Кофти»
+        # (рішення 10.11.2026). Строгий старий список — «светри вузько».
+        "светри": ["kofti/*", "kofty/*"],
+        "светри вузько": ["kofti/svitery", "kofti/dzhempery", "kofti/pulovery", "kofti/kardigany"],
         "кардигани": ["kofti/kardigany"],
         "худі": ["kofti/hudi", "kofti/svitshoty", "kofty/tolstovki"],
         "світшоти": ["kofti/hudi", "kofti/svitshoty", "kofty/tolstovki"],
@@ -93,6 +97,8 @@ CATEGORIES: dict[str, dict[str, list[str]]] = {
         "мокасини": ["obuv/mokasiny"],
         "сандалі": ["obuv/sandali"],
         "спорт": ["sport-i-otdyh/*"],
+        "піжами": ["odezhda-dlia-doma-i-sna/pizhamy"],
+        "одяг для дому": ["odezhda-dlia-doma-i-sna/*"],
     },
 }
 # Верхній рівень slug-а, який можна передати в запит як catalogSlug (лише чоловічі, перевірено за URL товарів).
@@ -100,11 +106,12 @@ CATEGORIES: dict[str, dict[str, list[str]]] = {
 MEN_SERVER_PARENTS = {"kofti": "kofti", "kofty": "kofti", "obuv": "obuv", "futbolki-i-maiki": "futbolki-i-maiki",
                       "rubashki": "rubashki", "shtany-i-shorty": "shtany-i-shorty",
                       "verkhniaia-odezhda": "verkhniaia-odezhda", "pidzhaki-i-kostiumy": "pidzhaki-i-kostiumy",
-                      "sport-i-otdyh": "sport-i-otdyh"}
+                      "sport-i-otdyh": "sport-i-otdyh", "odezhda-dlia-doma-i-sna": "odezhda-dlia-doma-i-sna"}
 
 FILTER_KEYS = ("section", "sizes", "categories", "min_condition", "max_price", "min_price", "materials",
                "materials_include", "materials_exclude", "keywords_exclude", "max_age_hours",
-               "package", "title_include", "text", "reseller_filter", "seller")
+               "package", "title_include", "text", "reseller_filter", "seller",
+               "also_categories", "title_in_description", "material_rules")
 DEFAULT_PACKAGE = "звичайні"
 # Продавець — характеристика 1757 «Продавець» (однакова в усіх категоріях, перевірено 9.11.2026):
 # 10290 «Приватний», 10291 «Бізнес та інші». «Бізнес та інші» — це й магазини (нові репліки «s-xxl»), і люди,
@@ -183,15 +190,37 @@ class CategoryMaterials:
     only: list[str] = field(default_factory=list)
     prefer: list[str] = field(default_factory=list)
     if_unknown: str = "skip"      # only + матеріал не вказано: skip — відсіяти, send — надіслати
+    except_patterns: list[str] = field(default_factory=list)   # except: [худі] — ці підкатегорії без правила
 
-CATEGORY_MATERIAL_KEYS = {"only", "prefer", "if_unknown"}
+CATEGORY_MATERIAL_KEYS = {"only", "prefer", "if_unknown", "except"}
 
 
-def material_check(item: dict, details: dict | None, cms: list[CategoryMaterials]) \
+def _cm_applies(c: CategoryMaterials, slug: str | None, rule: "Rule | None", constrained: set[str]) -> bool:
+    """Чи діє правило матеріалів категорії на цю річ у цьому правилі бренду.
+    Не діє, якщо: підкатегорія в except; правило вимкнуло материали (material_rules: false);
+    правило бренду пускає цю підкатегорію ще й через іншу назву без обмежень матеріалу
+    (Patagonia [кофти]: фліс із «Кофт» приходить, хоча «светри» — лише вовна; [светри, худі]: худі — будь-які)."""
+    if not category_ok(slug, c.patterns):
+        return False
+    if c.except_patterns and category_ok(slug, c.except_patterns):
+        return False
+    if rule is None:
+        return True
+    if not rule.material_rules:
+        return False
+    if c.only:   # пріоритет (prefer) лишається для всіх; обмеження only — ні
+        for name, pats in rule.category_map.items():
+            if name != c.category and name not in constrained and category_ok(slug, pats):
+                return False
+    return True
+
+
+def material_check(item: dict, details: dict | None, cms: list[CategoryMaterials], rule: "Rule | None" = None) \
         -> tuple[str | None, bool | None, list[str]]:
     """→ (причина відсіву або None, пріоритет: True/False/None якщо правила prefer немає, знайдені матеріали)."""
     slug = item.get("catalogSlug")
-    matched = [c for c in cms if category_ok(slug, c.patterns)]
+    constrained = {c.category for c in cms if c.only}
+    matched = [c for c in cms if _cm_applies(c, slug, rule, constrained)]
     text = material_text(details, item)
     found = sorted(detect_materials(text))
     if not matched:
@@ -229,6 +258,9 @@ class Rule:
     text: str | None = None               # серверний текстовий пошук (для брендів, яких на Shafa немає)
     reseller_filter: bool = True          # відсіювати мультирозмірні «нові» оголошення, репліки, опт
     seller: str = "any"                   # SELLER_MODES: private_new | private | any (серверний фільтр)
+    category_map: dict[str, list[str]] = field(default_factory=dict)  # назва категорії правила → slug-и
+    title_in_description: bool = False    # title_include шукати ще й в описі (потрібна картка): «Uniqlo U»
+    material_rules: bool = True           # false — category_materials (лише/пріоритет) не діють: Asics
 
     @property
     def brandless(self) -> bool:
@@ -471,10 +503,17 @@ def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> R
                 re.compile(fields[rx])
             except re.error as e:
                 raise ConfigError(f"{where}: поганий regex у {rx}: {e}")
+    cat_names = _as_list(fields.get("categories"))
+    if cat_names and brands and fields.get("also_categories"):
+        # also_categories (defaults: [худі]) додаються до категорій кожного бренду, у якого вони обмежені.
+        cat_names += [c for c in _as_list(fields.get("also_categories")) if c not in cat_names]
+    cat_map = {str(c).strip().lower(): resolve_categories([c], section, where) for c in cat_names}
     return Rule(
         label=label, brands=brands, enabled=enabled, section=section,
         sizes=resolve_sizes(fields.get("sizes"), section, where),
-        categories=resolve_categories(fields.get("categories"), section, where),
+        categories=list(dict.fromkeys(s for pats in cat_map.values() for s in pats)),
+        category_map=cat_map, title_in_description=bool(fields.get("title_in_description", False)),
+        material_rules=bool(fields.get("material_rules", True)),
         min_condition=fields.get("min_condition"), max_price=fields.get("max_price"),
         min_price=fields.get("min_price"), materials=resolve_materials(fields.get("materials"), where),
         materials_include=fields.get("materials_include"), materials_exclude=fields.get("materials_exclude"),
@@ -483,6 +522,12 @@ def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> R
         text=fields.get("text"), reseller_filter=bool(fields.get("reseller_filter", True)),
         seller=resolve_seller(fields.get("seller"), where),
     )
+
+
+def _as_list(v) -> list:
+    if not v:
+        return []
+    return [v] if isinstance(v, str) else list(v)
 
 
 def _brand_ids(b: dict) -> list[int]:
@@ -543,13 +588,18 @@ def loads(text: str) -> Config:
             label = f"{name} · {s['name']}" if s.get("name") else f"{name} #{n}"
             rules.append(_build(fields, label, brands, enabled and bool(s.get("enabled", True))))
 
+    all_brands = {i: str(b["name"]) for b in raw.get("brands") or [] for i in _brand_ids(b)}
     for n, s in enumerate(raw.get("searches") or [], 1):
         label = str(s.get("name") or f"Пошук #{n}")
-        _check_keys(s, search_keys, label)
-        fields = {**defaults, **{k: v for k, v in s.items() if k in FILTER_KEYS}}
+        _check_keys(s, search_keys | {"brands"}, label)
+        fields = {**defaults, **{k: v for k, v in s.items() if k in FILTER_KEYS and k != "also_categories"}}
+        fields.pop("also_categories", None)
         fields["sizes"] = merge_size_specs(defaults.get("sizes"), s.get("sizes"))
-        rule = _build(fields, label, {}, bool(s.get("enabled", True)))
-        if not (rule.categories or rule.materials or rule.max_price or rule.text):
+        if s.get("brands") not in (None, "all", "усі"):
+            raise ConfigError(f"{label}: brands у пошуку може бути лише all (усі бренди зі списку)")
+        sbrands = dict(all_brands) if s.get("brands") else {}
+        rule = _build(fields, label, sbrands, bool(s.get("enabled", True)))
+        if not sbrands and not (rule.categories or rule.materials or rule.max_price or rule.text):
             raise ConfigError(f"{label}: пошук без бренду без категорій, матеріалу й ціни — це увесь сайт. "
                               f"Звузь його.")
         rules.append(rule)
@@ -567,9 +617,10 @@ def loads(text: str) -> Config:
         unknown = str(spec.get("if_unknown", "skip"))
         if unknown not in ("skip", "send"):
             raise ConfigError(f"{where}: if_unknown має бути skip або send")
-        cms.append(CategoryMaterials(str(cat), resolve_categories([cat], section, where),
+        cms.append(CategoryMaterials(str(cat).strip().lower(), resolve_categories([cat], section, where),
                                      resolve_material_names(spec.get("only"), where),
-                                     resolve_material_names(spec.get("prefer"), where), unknown))
+                                     resolve_material_names(spec.get("prefer"), where), unknown,
+                                     resolve_categories(spec.get("except"), section, where)))
     meas = raw.get("measurements") or {}
     _check_keys(meas, {"waist_half_min", "length_min", "inseam_min", "insole"}, "measurements")
     if meas.get("insole") and (not isinstance(meas["insole"], list) or len(meas["insole"]) != 2):
@@ -625,7 +676,8 @@ def quick_check(item: dict, rule: Rule) -> str | None:
         age = _age_hours(item.get("createdAt"))
         if age is not None and age > float(rule.max_age_hours):
             return f"старе оголошення ({age:.0f} год)"
-    if rule.title_include and not re.search(rule.title_include, item.get("name") or "", re.I):
+    if rule.title_include and not rule.title_in_description \
+            and not re.search(rule.title_include, item.get("name") or "", re.I):
         return "немає потрібної фрази в назві"
     if rule.reseller_filter and RESELLER_RX.search(item.get("name") or ""):
         return "схоже на перекупника/репліку"
@@ -654,7 +706,11 @@ def materials_of(details: dict | None) -> list[str]:
 
 
 def detail_check(item: dict, details: dict | None, rule: Rule) -> str | None:
-    """Фільтри, яким потрібна картка товару (матеріал за описом і характеристиками)."""
+    """Фільтри, яким потрібна картка товару (матеріал за описом і характеристиками; фраза саб-лейбла в описі)."""
+    if rule.title_include and rule.title_in_description:
+        hay = (item.get("name") or "") + "\n" + ((details or {}).get("description") or "")
+        if not re.search(rule.title_include, hay, re.I):
+            return "немає потрібної фрази в назві й описі"
     if not (rule.materials_include or rule.materials_exclude):
         return None
     text = material_text(details, item)

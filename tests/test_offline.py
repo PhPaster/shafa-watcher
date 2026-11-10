@@ -35,9 +35,14 @@ class FakeShafa:
         return sorted(out, key=lambda i: i["createdAt"], reverse=True), False
 
     def products_multi(self, variants, *, brands, catalog, **k):
-        self.requests_made += 1          # один HTTP-запит на всі варіанти
-        self.variants_seen = variants
-        return [self.products(brands=brands, catalog=catalog, conditions=c) for c, _ in variants]
+        return self.products_batch([dict(variants=variants, brands=brands, catalog=catalog)])[0]
+
+    def products_batch(self, queries):
+        self.requests_made += 1          # один HTTP-запит на всі запити й варіанти (аліаси)
+        self.batches = getattr(self, "batches", []) + [len(queries)]
+        self.variants_seen = queries[-1]["variants"]
+        return [[self.products(brands=q["brands"], catalog=q["catalog"], conditions=c) for c, _ in q["variants"]]
+                for q in queries]
 
     def details(self, pid):
         self.requests_made += 1
@@ -122,6 +127,54 @@ class RunTest(unittest.TestCase):
         FakeShafa.catalog.append(item(34, 2, "shtany-i-shorty/dzhinsy", 0.5))
         self.run_once(cfg)
         self.assertEqual(FakeTelegram.sent, ["/uk/item/32", "/uk/item/34"])
+
+    def test_groups_batched_in_one_request(self):
+        body = BASE.format(extra="  - name: B\n    id: 2\n    package: інший\n    categories: [джинси]").replace(
+            "my_sizes:", "settings:\n  packages: {звичайні: 10, інший: 10}\nmy_sizes:")
+        cfg = write(self.tmp, body)
+        # 3 групи (A, B, пошук «Вовна») × 2 варіанти продавця… тут seller any → 3 аліаси — один HTTP-запит
+        fs = FakeShafa()
+        due = rules.load(cfg).groups()
+        res = main.prefetch_first_pages(fs, due, {"aliases_per_request": 10})
+        self.assertEqual(fs.requests_made, 1)
+        self.assertEqual(set(res), {g.id for g in due})
+        fs2 = FakeShafa()
+        main.prefetch_first_pages(fs2, due, {"aliases_per_request": 2})
+        self.assertEqual(fs2.batches, [2], "пачка до 2 аліасів; група-одиначка йде звичайним запитом")
+
+    def test_also_categories_and_all_brands_search(self):
+        cfg = rules.loads("""
+defaults: {also_categories: [худі]}
+brands:
+  - {name: A, id: 1, categories: [джинси]}
+  - {name: B, id: 2}
+  - {name: C, id: 3, categories: [джинси], also_categories: []}
+  - {name: D, id: 4, enabled: false}
+searches:
+  - {name: Лляні, categories: [сорочки]}
+  - {name: Шапки, brands: all, section: holovni-ubory/shapky, sizes: [320, 327], materials: [1602]}
+""")
+        by = {r.label: r for r in cfg.rules}
+        self.assertIn("kofti/hudi", by["A"].categories)
+        self.assertEqual(by["B"].categories, [], "без категорій — і так усе")
+        self.assertNotIn("kofti/hudi", by["C"].categories)
+        self.assertEqual(by["Лляні"].categories, ["rubashki/rubashki"], "пошуки без бренду — без also")
+        hats = by["Шапки"]
+        self.assertEqual(sorted(hats.brands), [1, 2, 3, 4], "усі бренди зі списку, і вимкнені теж")
+        self.assertEqual(hats.catalog, "holovni-ubory/shapky")
+        self.assertEqual(hats.sizes, [320, 327])
+
+    def test_title_in_description(self):
+        r = rules.loads("""
+brands:
+  - name: U
+    id: 1
+    searches: [{name: U, title_include: 'uniqlo\\s*u\\b', title_in_description: true}]
+""").rules[0]
+        it = item(1, 1, "kofti/hudi", name="Худі")
+        self.assertIsNone(rules.quick_check(it, r), "назва не обовʼязкова — перевірка в картці")
+        self.assertIsNone(rules.detail_check(it, {"description": "Колекція Uniqlo U"}, r))
+        self.assertIn("опис", rules.detail_check(it, {"description": "базове"}, r))
 
     def test_first_pass_backfill_sends_last_hours(self):
         body = BASE.format(extra="").replace("my_sizes:", "settings:\n  backfill_hours: 72\nmy_sizes:")

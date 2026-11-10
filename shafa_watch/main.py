@@ -119,8 +119,44 @@ def young_share(batch: list[dict], hours: float) -> float:
     return sum(1 for a in ages if a is not None and a <= hours) / max(len(ages), 1)
 
 
+def page_query(g: rules.Group, st: dict, page: int = 1, variants=None) -> dict:
+    r = g.server
+    return dict(variants=variants if variants is not None else r.variants(), brands=g.brand_ids or None,
+                catalog=r.catalog, sizes=r.sizes, price_to=r.max_price, price_from=r.min_price,
+                first=int(st.get("items_per_query", 100)), page=page, search_text=r.text)
+
+
+def prefetch_first_pages(shafa: Shafa, due: list[rules.Group], st: dict) -> dict[str, list]:
+    """Перші сторінки всіх груп проходу — пачками по settings.aliases_per_request аліасів в одному HTTP-запиті
+    (менше запитів і коротший прохід). Пачка впала → її групи підуть окремими запитами у fetch_group."""
+    limit = max(1, int(st.get("aliases_per_request", 10)))
+    batches: list[list[rules.Group]] = []
+    size = 0
+    for g in due:
+        n = len(g.server.variants())
+        if not batches or size + n > limit:
+            batches.append([])
+            size = 0
+        batches[-1].append(g)
+        size += n
+    out: dict[str, list] = {}
+    for b in batches:
+        if len(b) == 1:
+            continue                       # одна група — звичайний запит у fetch_group
+        try:
+            res = shafa.products_batch([page_query(g, st) for g in b])
+        except ShafaError as e:
+            log.warning("пачка з %d груп не вдалася (%s) — окремими запитами", len(b), e)
+            if e.status in (403, 429):
+                raise
+            continue
+        for g, r in zip(b, res):
+            out[g.id] = r
+    return out
+
+
 def fetch_group(shafa: Shafa, g: rules.Group, state: State, st: dict, demo: bool,
-                backfill_h: float = 0, force_backfill: bool = False) -> list[dict]:
+                backfill_h: float = 0, force_backfill: bool = False, first_page: list | None = None) -> list[dict]:
     """backfill_h > 0: для групи в першому проході (або force_backfill) гортати, поки на сторінці
     більшість речей молодші за backfill_h годин (до settings.backfill_max_pages сторінок)."""
     r = g.server
@@ -133,9 +169,10 @@ def fetch_group(shafa: Shafa, g: rules.Group, state: State, st: dict, demo: bool
     items: list[dict] = []
     seen_ids: set[int] = set()
     for page in range(1, max_pages + 1):
-        res = shafa.products_multi(
-            [variants[i] for i in active], brands=g.brand_ids or None, catalog=r.catalog, sizes=r.sizes,
-            price_to=r.max_price, price_from=r.min_price, first=per_page, page=page, search_text=r.text)
+        if page == 1 and first_page is not None:
+            res = first_page
+        else:
+            res = shafa.products_batch([page_query(g, st, page, [variants[i] for i in active])])[0]
         nxt = []
         for i, (batch, has_next) in zip(active, res):
             items += [x for x in batch if x["id"] not in seen_ids]
@@ -225,9 +262,15 @@ def run(args) -> int:
     sources: dict[int, list[rules.Group]] = {}
     ok_groups: list[rules.Group] = []
     failed = 0
+    try:
+        first_pages = prefetch_first_pages(shafa, due, st)
+    except ShafaError as e:                # 403/429 — далі кожна група спробує сама й підніме алерт
+        log.error("пачка запитів: %s", e)
+        first_pages = {}
     for g in due:
         try:
-            items = fetch_group(shafa, g, state, st, bool(args.demo), backfill_h, bool(force_bf))
+            items = fetch_group(shafa, g, state, st, bool(args.demo), backfill_h, bool(force_bf),
+                                first_pages.get(g.id))
         except ShafaError as e:
             failed += 1
             health.count("errors")
@@ -312,11 +355,18 @@ def run(args) -> int:
             passing = ok
         priority, mats = None, []
         if passing:
-            mreason, priority, mats = rules.material_check(item, d, cfg.category_materials)
-            mreason = mreason or rules.measure_check(item, d, cfg.measurements)
-            if mreason:
-                reasons.append(mreason)
-                passing = []
+            ok, checked = [], []
+            for r in passing:            # правило матеріалів залежить від категорій правила (Patagonia: фліс)
+                mreason, prio, found_m = rules.material_check(item, d, cfg.category_materials, r)
+                mreason = mreason or rules.measure_check(item, d, cfg.measurements)
+                if mreason:
+                    reasons.append(mreason)
+                else:
+                    ok.append(r)
+                    checked.append((prio, found_m))
+            passing = ok
+            if passing:
+                priority, mats = checked[0]
         if not passing:
             log.info("  пропуск %s «%s»: %s", pid, item.get("name"), "; ".join(dict.fromkeys(reasons)))
             if not args.demo:

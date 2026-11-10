@@ -178,20 +178,39 @@ class BotTest(unittest.TestCase):
 
 class MaterialCheckTest(unittest.TestCase):
     def setUp(self):
-        self.cms = rules.loads("""
+        cfg = rules.loads("""
 category_materials:
-  светри: {only: [вовна, кашемір, альпака, ангора]}
+  светри: {only: [вовна, кашемір, альпака, ангора], except: [худі]}
   взуття: {prefer: [шкіра, замша]}
-""").category_materials
+brands:
+  - {name: S, id: 1, categories: [светри]}
+  - {name: P, id: 2, categories: [кофти]}
+  - {name: A, id: 3, categories: [взуття], material_rules: false}
+""")
+        self.cms = cfg.category_materials
+        self.by = {r.label: r for r in cfg.rules}
 
-    def check(self, slug, name, desc=""):
-        return rules.material_check({"catalogSlug": slug, "name": name}, {"description": desc}, self.cms)
+    def check(self, slug, name, desc="", rule=None):
+        return rules.material_check({"catalogSlug": slug, "name": name}, {"description": desc}, self.cms,
+                                    self.by.get(rule))
 
     def test_only(self):
         self.assertIsNone(self.check("kofti/svitery", "Светр альпака")[0])
         self.assertIn("треба", self.check("kofti/svitery", "Светр", "100% бавовна")[0])
         self.assertIn("не вказано", self.check("kofti/svitery", "Светр зимовий")[0])
-        self.assertIsNone(self.check("kofti/hudi", "Худі бавовна")[0], "інша категорія — без обмежень")
+        self.assertIsNone(self.check("kofti/hudi", "Худі бавовна")[0], "except: худі — без обмежень")
+        self.assertIsNone(self.check("shtany-i-shorty/bryuki", "Брюки бавовна")[0], "інша категорія")
+
+    def test_svitery_whole_kofti_section(self):
+        # «светри» = увесь розділ «Кофти»: гольф і «Кофти» теж лише вовняні
+        self.assertIn("треба", self.check("kofty/golfy", "Гольф", "бавовна", "S")[0])
+        self.assertIsNone(self.check("kofty/kofty", "Кофта", "100% вовна", "S")[0])
+
+    def test_other_category_name_exempts(self):
+        # Patagonia [кофти, …]: фліс зі «Светрів» проходить, бо «кофти» без обмежень матеріалу
+        self.assertIsNone(self.check("kofti/svitery", "Светр synchilla fleece", "поліестер", "P")[0])
+        # Asics: material_rules: false — без «тихо» для не шкіряних
+        self.assertEqual(self.check("obuv/krossovki", "Кросівки сітка", "", "A")[:2], (None, None))
 
     def test_prefer(self):
         self.assertEqual(self.check("obuv/botinki", "Черевики", "натуральна шкіра")[:2], (None, True))

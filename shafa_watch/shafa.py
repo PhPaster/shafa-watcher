@@ -151,42 +151,49 @@ class Shafa:
                        price_from: int | None = None, first: int = 100, page: int = 1,
                        search_text: str | None = None) -> list[tuple[list[dict], bool]]:
         """Кілька варіантів (стани, характеристики) з однаковими рештою фільтрів — одним HTTP-запитом
-        через аліаси GraphQL (v0, v1 …). Повертає [(товари, є_ще_сторінка)] у порядку variants."""
-        v: dict = {"first": first, "pageNum": page, "orderBy": "4"}
-        decl = ["$first: Int!", "$pageNum: Int!", "$orderBy: String", "$catalogSlug: String", "$brands: [Int]",
-                "$sizes: [Int!]", "$priceTo: Int", "$priceFrom: Int"]
-        common = ("first: $first, pageNum: $pageNum, orderBy: $orderBy, sizes: $sizes, priceTo: $priceTo, "
-                  "priceFrom: $priceFrom, catalogSlug: $catalogSlug, brands: $brands")
-        if brands:
-            v["brands"] = brands
-        if catalog:
-            v["catalogSlug"] = catalog
-        if sizes:
-            v["sizes"] = sizes
-        if price_to:
-            v["priceTo"] = int(price_to)
-        if price_from:
-            v["priceFrom"] = int(price_from)
-        if search_text:
-            v["searchText"] = search_text
-            decl.append("$searchText: String")
-            common += ", searchText: $searchText"
-        parts = []
-        for i, (conds, chars) in enumerate(variants):
-            decl += [f"$conditions{i}: [Int]", f"$characteristics{i}: [Int!]"]
-            if conds:
-                v[f"conditions{i}"] = conds
-            if chars:
-                v[f"characteristics{i}"] = chars
-            parts.append(f"v{i}: products({common}, condition: $conditions{i}, "
-                         f"characteristics: $characteristics{i}) {{\n    edges {{ node {{\n      {NODE_FIELDS}\n    }} }}"
-                         f"\n    pageInfo {{ hasNextPage total }}\n  }}")
+        через аліаси GraphQL. Повертає [(товари, є_ще_сторінка)] у порядку variants."""
+        return self.products_batch([dict(variants=variants, brands=brands, catalog=catalog, sizes=sizes,
+                                         price_to=price_to, price_from=price_from, first=first, page=page,
+                                         search_text=search_text)])[0]
+
+    def products_batch(self, queries: list[dict]) -> list[list[tuple[list[dict], bool]]]:
+        """Кілька запитів каталогу (кожен — зі своїми варіантами) одним HTTP-запитом через аліаси GraphQL
+        (перевірено до 15 аліасів, 9.11.2026). queries: [{variants, brands, catalog, sizes, price_to, price_from,
+        first, page, search_text}] → для кожного запиту [(товари, є_ще_сторінка)] у порядку його variants."""
+        v: dict = {"orderBy": "4"}
+        decl = ["$orderBy: String"]
+        parts, aliases = [], []
+        for qi, q in enumerate(queries):
+            p = f"q{qi}"
+            v[f"{p}first"], v[f"{p}page"] = int(q.get("first") or 100), int(q.get("page") or 1)
+            decl += [f"${p}first: Int!", f"${p}page: Int!"]
+            args = [f"first: ${p}first", f"pageNum: ${p}page", "orderBy: $orderBy"]
+            for key, gql, typ in (("brands", "brands", "[Int]"), ("catalog", "catalogSlug", "String"),
+                                  ("sizes", "sizes", "[Int!]"), ("price_to", "priceTo", "Int"),
+                                  ("price_from", "priceFrom", "Int"), ("search_text", "searchText", "String")):
+                val = q.get(key)
+                if val:
+                    v[f"{p}{gql}"] = int(val) if typ == "Int" else val
+                    decl.append(f"${p}{gql}: {typ}")
+                    args.append(f"{gql}: ${p}{gql}")
+            for vi, (conds, chars) in enumerate(q["variants"]):
+                a = f"{p}v{vi}"
+                decl += [f"${a}c: [Int]", f"${a}ch: [Int!]"]
+                if conds:
+                    v[f"{a}c"] = conds
+                if chars:
+                    v[f"{a}ch"] = chars
+                parts.append(f"{a}: products({', '.join(args)}, condition: ${a}c, characteristics: ${a}ch) {{\n"
+                             f"    edges {{ node {{\n      {NODE_FIELDS}\n    }} }}\n    pageInfo {{ hasNextPage total }}\n  }}")
+                aliases.append((qi, a))
         query = f"query WEB_CatalogProducts({', '.join(decl)}) {{\n  " + "\n  ".join(parts) + "\n}"
         data = self._post("WEB_CatalogProducts", query, v)
-        out = []
-        for i in range(len(variants)):
-            p = data[f"v{i}"]
-            out.append(([e["node"] for e in p["edges"]], bool(p["pageInfo"]["hasNextPage"])))
+        out: list[list[tuple[list[dict], bool]]] = [[] for _ in queries]
+        for qi, a in aliases:
+            p = data.get(a)
+            if p is None:
+                raise ShafaError(f"GraphQL: немає відповіді для {a}")
+            out[qi].append(([e["node"] for e in p["edges"]], bool(p["pageInfo"]["hasNextPage"])))
         return out
 
     def find_brands(self, name: str, first: int = 20) -> list[dict]:
