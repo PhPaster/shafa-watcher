@@ -211,8 +211,8 @@ brands:
       - name: "Lee 101"   # селвідж, Rider, Storm Rider, Western
         title_include: "\\b101\\b|rider"
         categories: [джинси, верхній одяг]
-  - name: "Levi's"   # 11.11: + Levi Strauss & Co. (64948) — окремий id на Shafa
-    id: [82, 64948]
+  - name: "Levi's"   # 11.11: + Levi Strauss & Co. (64948) — окремий id на Shafa  # 11.11: + Levi's Premium
+    id: [82, 64948, 64957]
     package: гарячі
     searches:
       - name: основне
@@ -273,8 +273,8 @@ brands:
     id: 416
     package: гарячі
     categories: [верхній одяг, сорочки, светри, взуття]
-  - name: "Ralph Lauren"   # 11.11: + Lauren Ralph Lauren (46558) — окремий id на Shafa · оксфордські й фланелеві сорочки, лляні сорочки, чінос, кашемір, твідові піджаки; уникати Polo Sport і Big Pony
-    id: [143, 47965, 46558]
+  - name: "Ralph Lauren"   # 11.11: + Lauren Ralph Lauren (46558) — окремий id на Shafa · оксфордські й фланелеві сорочки, лляні сорочки, чінос, кашемір, твідові піджаки; уникати Polo Sport і Big Pony  # 11.11: + Polo Jeans, Polo Jeans Co.
+    id: [143, 47965, 46558, 2162, 87622]
     package: гарячі
     searches:
       - name: основне
@@ -402,8 +402,8 @@ brands:
     id: 3643
     package: звичайні
     categories: [взуття]
-  - name: "Bogner"   # пуховики, лижні куртки без декору
-    id: 44343
+  - name: "Bogner"   # пуховики, лижні куртки без декору  # 11.11: + Bogner Fire+Ice
+    id: [44343, 94062]
     package: звичайні
     categories: [верхній одяг]
   - name: "Brioni"   # костюми, кашемір, шовкові сорочки, краватки
@@ -503,8 +503,8 @@ brands:
     package: звичайні
     categories: [светри]
     keywords_exclude: "mickey|мікі|міккі|disney|дісней|looney|tweety|bugs bunny|simpson|batman|felix"
-  - name: "J.Lindeberg"   # вовняні пальта, замшеві куртки, піджаки, меринос
-    id: 46555
+  - name: "J.Lindeberg"   # вовняні пальта, замшеві куртки, піджаки, меринос  # 11.11: + Lindeberg
+    id: [46555, 5946]
     package: звичайні
     categories: [верхній одяг, піджаки, светри]
   - name: "Jaeger"   # пальта, трикотаж, костюми
@@ -548,8 +548,8 @@ brands:
     id: 47052
     package: звичайні
     categories: [светри, верхній одяг, поло]
-  - name: "Maison Margiela"   # деконструйовані піджаки, пальта, трикотаж; лінії 10 і 14
-    id: [1583, 44935]
+  - name: "Maison Margiela"   # деконструйовані піджаки, пальта, трикотаж; лінії 10 і 14  # 11.11: + Maison Margiel
+    id: [1583, 44935, 46408]
     package: звичайні
     categories: [піджаки, верхній одяг, светри, футболки]
   - name: "Meindl"   # трекінгові й мисливські черевики
@@ -631,8 +631,8 @@ brands:
     id: 45195
     package: звичайні
     categories: [верхній одяг]
-  - name: "Selected Homme"   # вовняні пальта, замшеві куртки, меринос, лляні сорочки, чінос
-    id: 74514
+  - name: "Selected Homme"   # вовняні пальта, замшеві куртки, меринос, лляні сорочки, чінос  # 11.11: + Selected Home, Selected
+    id: [74514, 57265, 4510]
     package: звичайні
     categories: [верхній одяг, светри, сорочки, брюки]
   - name: "Strellson"   # вовняні пальта, шкіряні куртки, Swiss Cross, піджаки, брюки
@@ -903,6 +903,482 @@ brands:
     id: 46776
     package: звичайні
     categories: [футболки, светри]
+
+
+  # ===== 11.11.2026, вечір: другий раунд — мій відбір з каталогу й рідкісних брендів (частота не важлива) =====
+  # Не додано свідомо: масмаркет з великим потоком (Columbia, Tommy Hilfiger, Armani Exchange, HUGO), люкс із масою підробок
+  # (Louis Vuitton, Gucci, Dolce & Gabbana, Chrome Hearts), велоодяг (7mesh, Castelli), бюджетне мілітарі (Mil-Tec, Brandit, M-Tac),
+  # бюджетний аутдор (Craghoppers, Karrimor, Regatta), сандалі (Teva, Suicoke).
+  # — класика, костюми, сорочки
+  - name: "Tom Ford"   # люкс; L/XL — 133 активних, медіана ~38 тис. — переважно оригінали
+    id: 677
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Stefano Ricci"   # італійський люкс
+    id: 45632
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Zilli"   # французький люкс, шкіра, кашемір
+    id: 46854
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Luis Trenker"   # тирольський лоден, вовна
+    id: 55169
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "De Fursac"   # французький tailoring
+    id: 64509
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Bagnoli Sartoria Napoli"   # неаполітанський tailoring
+    id: 55294
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Carlo Pignatelli"   # італійські костюми
+    id: 15531
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Linea Sartoriale"   # кравецький одяг
+    id: 49861
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Seventy Venezia"   # італійська класика
+    id: 94982
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Club of Gents"   # німецький tailoring
+    id: 48014
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Hensel und Mortensen"   # німецька класика
+    id: 54404
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Daniel Cremieux"   # французька класика
+    id: 59945
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Fretz men"   # швейцарська класика
+    id: 52238
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Fuchs & Schmitt"   # німецькі пальта й куртки
+    id: 45257
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Wilvorst"   # німецькі костюми
+    id: 65441
+    package: звичайні
+    categories: [піджаки, костюми]
+  - name: "Savile Row Company"   # британські сорочки й костюми
+    id: 51462
+    package: звичайні
+    categories: [сорочки, піджаки, костюми]
+  - name: "Simon Carter"   # британські сорочки
+    id: 51702
+    package: звичайні
+    categories: [сорочки, піджаки]
+  - name: "Scapa"   # бельгійська класика
+    id: 17068
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Aglini"   # італійські сорочки
+    id: 49380
+    package: звичайні
+    categories: [сорочки]
+  - name: "Ted Baker"   # британські сорочки, костюми
+    id: 3231
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Nicole Farhi"   # британська класика
+    id: 50305
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Racing Green"   # британська класика
+    id: 14914
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Rodd & Gunn"   # новозеландська класика
+    id: 86104
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Tulchan"   # британський кантрі-одяг
+    id: 47681
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Gardeur"   # німецькі брюки
+    id: 48017
+    package: звичайні
+    categories: [брюки]
+  - name: "Harris Wharf London"   # вовняні пальта
+    id: 46764
+    package: звичайні
+    categories: [верхній одяг, піджаки]
+  - name: "Belfe"   # італійська верхня одежа
+    id: 79073
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "JW Anderson"   # британський дизайнер
+    id: 63322
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "JW Anderson x Uniqlo"   # колаборація з Uniqlo
+    id: 88247
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Costume National"   # італійський дизайнер
+    id: 3223
+    package: звичайні
+    categories: [верхній одяг, піджаки, костюми, брюки, светри, сорочки, взуття]
+  - name: "Son of a Tailor"   # якісні футболки
+    id: 59709
+    package: звичайні
+    categories: [футболки, сорочки]
+  # — трикотаж (вовна, кашемір)
+  - name: "The House of Bruar"   # шотландський трикотаж, твід
+    id: 80394
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Sunderland of Scotland"   # шотландська вовна
+    id: 57128
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Glenbrae"   # шотландський кашемір і ламбсвул
+    id: 53530
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Blackcock Lambswool"   # ламбсвул
+    id: 72244
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Just Cashmere"   # кашемір
+    id: 46296
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Cashmere Company"   # кашемір
+    id: 51801
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Woolovers"   # вовна, кашемір, меринос
+    id: 45103
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Nigel Hall"   # британський трикотаж, меринос
+    id: 52153
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Daniele Fiesoli"   # італійський трикотаж
+    id: 55676
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Holebrook Sweden"   # шведські вовняні светри
+    id: 76714
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Dachstein"   # австрійська валяна вовна
+    id: 46419
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Stefanel"   # італійський трикотаж
+    id: 294
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "La Fileria"   # італійський трикотаж (Drumohr)
+    id: 49364
+    package: звичайні
+    categories: [светри, сорочки, футболки]
+  - name: "Fynch-Hatton"   # німецький трикотаж
+    id: 47232
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  - name: "Christian Berg"   # шведська класика, вовна
+    id: 49379
+    package: звичайні
+    categories: [светри, верхній одяг, сорочки, брюки]
+  # — шкіра, дублянки, верхній одяг
+  - name: "Shepherd of Sweden"   # дублянки, овчина
+    id: 57191
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Mac Douglas"   # французька шкіра
+    id: 92602
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Jitrois"   # французька шкіра, люкс
+    id: 72229
+    package: звичайні
+    categories: [верхній одяг, брюки]
+  - name: "Gipsy"   # німецькі шкіряні куртки
+    id: 45502
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Goosecraft"   # шкіряні куртки, пальта
+    id: 45457
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "AllSaints"   # шкіряні куртки, трикотаж (футболки — шум)
+    id: 1420
+    package: звичайні
+    categories: [верхній одяг, светри]
+  # — денім
+  - name: "Jacob Cohen"   # італійський преміум-денім
+    id: 45846
+    package: звичайні
+    categories: [джинси, брюки, піджаки]
+  - name: "Ksubi"   # австралійський денім
+    id: 62656
+    package: звичайні
+    categories: [джинси]
+  - name: "7 For All Mankind"   # американський преміум-денім
+    id: 45466
+    package: звичайні
+    categories: [джинси]
+  - name: "Kuyichi"   # органічний денім
+    id: 47551
+    package: звичайні
+    categories: [джинси, брюки]
+  # — взуття
+  - name: "Pollini"   # італійська шкіра
+    id: 3182
+    package: звичайні
+    categories: [взуття]
+  - name: "Cole Haan"   # американські шкіряні туфлі
+    id: 2553
+    package: звичайні
+    categories: [взуття]
+  - name: "Russell & Bromley"   # британська шкіра
+    id: 289
+    package: звичайні
+    categories: [взуття]
+  - name: "Oliver Sweeney"   # британські туфлі
+    id: 48067
+    package: звичайні
+    categories: [взуття]
+  - name: "Samuel Windsor"   # британські туфлі Goodyear
+    id: 5525
+    package: звичайні
+    categories: [взуття]
+  - name: "Fairfax & Favor"   # британські шкіряні черевики
+    id: 91922
+    package: звичайні
+    categories: [взуття]
+  - name: "Johnston & Murphy"   # американські шкіряні туфлі
+    id: 53618
+    package: звичайні
+    categories: [взуття]
+  - name: "Tecovas"   # ковбойські чоботи
+    id: 57662
+    package: звичайні
+    categories: [взуття]
+  - name: "Rocky Boots"   # робочі черевики
+    id: 56535
+    package: звичайні
+    categories: [взуття]
+  - name: "Blackstone"   # голландські шкіряні черевики
+    id: 16708
+    package: звичайні
+    categories: [взуття]
+  - name: "Royer"   # французькі черевики
+    id: 80617
+    package: звичайні
+    categories: [взуття]
+  - name: "Manfield"   # французька шкіра
+    id: 4082
+    package: звичайні
+    categories: [взуття]
+  - name: "Pikolinos"   # іспанська шкіра
+    id: 266
+    package: звичайні
+    categories: [взуття]
+  - name: "Sioux"   # німецька шкіра
+    id: 7988
+    package: звичайні
+    categories: [взуття]
+  - name: "Josef Seibel"   # німецька шкіра
+    id: 17003
+    package: звичайні
+    categories: [взуття]
+  - name: "Nero Giardini"   # італійська шкіра
+    id: 2653
+    package: звичайні
+    categories: [взуття]
+  - name: "Baldinini"   # італійська шкіра, люкс
+    id: 1272
+    package: звичайні
+    categories: [взуття]
+  - name: "Pegada"   # бразильська шкіра
+    id: 47470
+    package: звичайні
+    categories: [взуття]
+  - name: "Gallus"   # австрійські шкіряні черевики
+    id: 10017
+    package: звичайні
+    categories: [взуття]
+  - name: "Salamander"   # німецька шкіра
+    id: 6234
+    package: звичайні
+    categories: [взуття]
+  - name: "Chatham"   # британські шкіряні туфлі
+    id: 47909
+    package: звичайні
+    categories: [взуття]
+  - name: "Venturini"   # італійські туфлі
+    id: 3017
+    package: звичайні
+    categories: [взуття]
+  - name: "Camel Active"   # німецька шкіра й куртки
+    id: 9268
+    package: звичайні
+    categories: [взуття, верхній одяг]
+  - name: "Hush Puppies"   # замшеві черевики й туфлі
+    id: 6223
+    package: звичайні
+    categories: [взуття]
+  - name: "Vagabond"   # шведська шкіра
+    id: 785
+    package: звичайні
+    categories: [взуття]
+  - name: "PANTOFOLA D`ORO"   # італійські шкіряні кеди
+    id: 45803
+    package: звичайні
+    categories: [взуття]
+  - name: "Chiruca"   # іспанські трекінгові черевики
+    id: 84614
+    package: звичайні
+    categories: [взуття]
+  - name: "Dolomite"   # італійські трекінгові черевики
+    id: 52375
+    package: звичайні
+    categories: [взуття]
+  - name: "La Sportiva"   # італійські гірські черевики
+    id: 51521
+    package: звичайні
+    categories: [взуття]
+  - name: "Vivobarefoot"   # шкіряні барфут-черевики
+    id: 51367
+    package: звичайні
+    categories: [взуття]
+  - name: "Merrell"   # трекінгові черевики (нешкіряні — тихо)
+    id: 4200
+    package: звичайні
+    categories: [взуття]
+  - name: "Icebug"   # шведські зимові кросівки
+    id: 55466
+    package: звичайні
+    categories: [взуття]
+  - name: "Allbirds"   # мериносові кросівки
+    id: 53549
+    package: звичайні
+    categories: [взуття]
+  - name: "Maison Mihara Yasuhiro"   # японські кеди
+    id: 57435
+    package: звичайні
+    categories: [взуття]
+  # — аутдор і пуховики
+  - name: "Mountain Hardwear"   # американські пуховики
+    id: 51671
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Marmot"   # американський аутдор
+    id: 9552
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Millet"   # французький альпінізм
+    id: 54517
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Ortovox"   # вовняний і мериносовий аутдор
+    id: 48952
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Aclima"   # норвезький меринос
+    id: 78269
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Mons Royale"   # меринос
+    id: 54291
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Swedemount"   # шведський меринос
+    id: 51614
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Fjord Nansen"   # норвезький аутдор
+    id: 46943
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Löffler"   # австрійський спорт
+    id: 45488
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Maloja"   # швейцарський гірський одяг
+    id: 56330
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Sportalm"   # австрійський лижний преміум
+    id: 6612
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Joutsen"   # фінські пуховики
+    id: 99563
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "SAVE THE DUCK"   # італійські пуховики
+    id: 62092
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Blauer"   # італійські куртки
+    id: 45798
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Bomboogie"   # італійські куртки
+    id: 46003
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Rapha"   # меринос, без велотрико
+    id: 47618
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Odlo"   # швейцарський фліс і меринос
+    id: 44430
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Jack Wolfskin"   # німецький аутдор
+    id: 2583
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Carinthia"   # австрійські утеплені куртки
+    id: 59438
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "RefrigiWear"   # утеплені робочі куртки
+    id: 55913
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Engelbert Strauss"   # німецький робочий одяг
+    id: 47855
+    package: звичайні
+    categories: [верхній одяг, штани]
+  - name: "5.11 Tactical"   # тактичний одяг
+    id: 49468
+    package: звичайні
+    categories: [верхній одяг, штани]
+  - name: "Stüssy"   # лише куртки й пуховики
+    id: 46439
+    package: звичайні
+    categories: [верхній одяг]
+  - name: "Kith"   # якісний кежуал
+    id: 45978
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Fear of God"   # американський дизайнер
+    id: 90493
+    package: звичайні
+    categories: [верхній одяг, светри]
+  - name: "Cav Empt"   # японський стрітвір
+    id: 56847
+    package: звичайні
+    categories: [верхній одяг, светри]
 
   # ===== рідкісні: кожні 30 хв — 137 =====
   - name: "A.P.C."   # Petit Standard, New Standard, пальта Mac, светри
@@ -1189,8 +1665,8 @@ brands:
     id: 46885
     package: рідкісні
     categories: [взуття]
-  - name: "Lodenfrey"   # лоден, верблюжа вовна
-    id: 70119
+  - name: "Lodenfrey"   # лоден, верблюжа вовна  # 11.11: + FREY
+    id: [70119, 64697]
     package: рідкісні
     categories: [верхній одяг, светри]
   - name: "Luhta"   # верхній одяг
@@ -1253,8 +1729,8 @@ brands:
     id: 45995
     package: рідкісні
     categories: [верхній одяг, кофти]
-  - name: "Norse Projects"   # Gore-Tex куртки, парки, светри, сорочки, чінос
-    id: 74844
+  - name: "Norse Projects"   # Gore-Tex куртки, парки, светри, сорочки, чінос  # 11.11: + Norse project
+    id: [74844, 45999]
     package: рідкісні
     categories: [верхній одяг, светри, сорочки, брюки, футболки]
   - name: "Nudie Jeans"   # органічний денім, куртки, сорочки
@@ -1333,8 +1809,8 @@ brands:
     id: 45791
     package: рідкісні
     categories: [светри, верхній одяг, сорочки]
-  - name: "Sandro Paris"   # вовняні пальта, шкіряні куртки, піджаки, сорочки, светри
-    id: 45579
+  - name: "Sandro Paris"   # вовняні пальта, шкіряні куртки, піджаки, сорочки, светри  # 11.11: + Sandro
+    id: [45579, 100825]
     package: рідкісні
     categories: [верхній одяг, піджаки, сорочки, светри]
   - name: "Scabal"   # костюми, піджаки
@@ -1686,8 +2162,8 @@ brands:
     id: 76572
     package: тихі
     categories: [піджаки, взуття, брюки, верхній одяг, сорочки, футболки]
-  - name: "Ferragamo"   # лофери, оксфорди
-    id: 59282
+  - name: "Ferragamo"   # лофери, оксфорди  # 11.11: + Salvatore Ferragamo
+    id: [59282, 44725]
     package: тихі
     categories: [взуття]
   - name: "Filling Pieces"   # кросівки
@@ -2311,8 +2787,8 @@ brands:
     id: 66574
     package: не мої розміри
     categories: [сорочки, брюки, верхній одяг, светри, футболки]
-  - name: "Marithe Francois Girbaud"   # авангардні джинси, робочі куртки
-    id: 49144
+  - name: "Marithe Francois Girbaud"   # авангардні джинси, робочі куртки  # 11.11: + Marithé + François Girbaud
+    id: [49144, 47391]
     package: не мої розміри
   - name: "Meermin"   # черевики, лофери, оксфорди
     id: 51478

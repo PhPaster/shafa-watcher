@@ -412,6 +412,9 @@ def run(args) -> int:
             state.mark(pid)
             state.mark_title(tkey)
             health.resolve("telegram", "Telegram знову приймає повідомлення")
+            # Зберігати після кожного надісланого: якщо запуск обірветься (GitHub скасовує задачу ubuntu-slim
+            # через ~15 хв, 11.11.2026), надіслане не прийде вдруге — крок воркфлоу збереже цей файл.
+            state.save()
 
     if force_bf and not args.demo:
         try:

@@ -65,10 +65,11 @@ jobs:
     needs: gate
     # dispatch: gate пропущено → запуск; schedule: якщо gate сказав run=1 або сам упав (краще зайвий запуск, ніж жодного).
     if: ${{ !cancelled() && (needs.gate.result != 'success' || needs.gate.outputs.run == '1') }}
-    # ubuntu-slim: 1 vCPU, найдешевший раннер ($0.002/хв проти $0.006 у ubuntu-latest).
-    runs-on: ubuntu-slim
+    # ubuntu-slim: 1 vCPU, найдешевший раннер ($0.002/хв проти $0.006 у ubuntu-latest). Задачу на ньому GitHub
+    # скасовує через ~15 хв (спостерігалось 11.11.2026), тому довгі довантаження йдуть на ubuntu-latest.
+    runs-on: ${{ github.event.inputs.backfill && github.event.inputs.backfill != '0' && 'ubuntu-latest' || 'ubuntu-slim' }}
     # довантаження (backfill) — довгий разовий прохід: сотні запитів із паузами й надсилання в Telegram
-    timeout-minutes: ${{ github.event.inputs.backfill && github.event.inputs.backfill != '0' && 40 || 8 }}
+    timeout-minutes: ${{ github.event.inputs.backfill && github.event.inputs.backfill != '0' && 90 || 8 }}
     steps:
       - uses: actions/checkout@v4
 
