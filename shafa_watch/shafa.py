@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import html
 import logging
 import random
 import time
@@ -38,7 +39,7 @@ query WEB_CatalogProducts($first: Int!, $pageNum: Int!, $catalogSlug: String, $b
     characteristics: $characteristics) {
     edges { node {
       id url name thumbnail price oldPrice discountPercent statusTitle condition createdAt isNew
-      catalogSlug brand { id name } sizes { id name }
+      catalogSlug brand { id name } sizes { id name } seller { id username }
     } }
     pageInfo { hasNextPage total }
   }
@@ -46,7 +47,7 @@ query WEB_CatalogProducts($first: Int!, $pageNum: Int!, $catalogSlug: String, $b
 """
 
 NODE_FIELDS = """id url name thumbnail price oldPrice discountPercent statusTitle condition createdAt isNew
-      catalogSlug brand { id name } sizes { id name }"""
+      catalogSlug brand { id name } sizes { id name } seller { id username }"""
 
 # Картка товару: опис, усі фото, стан текстом, характеристики (зокрема «Матеріал»).
 DETAILS_QUERY = """
@@ -64,6 +65,16 @@ query WEB_ProductDetailsPageProduct($productId: Int!) {
   }
 }
 """
+
+
+def clean(node: dict | None) -> dict | None:
+    """Shafa віддає назви й описи з HTML-кодами («made &amp; crafted», «&#39;»): розкодувати,
+    інакше фрази з «&» не знаходяться, а в Telegram видно «&amp;» (11.11.2026)."""
+    if node:
+        for k in ("name", "description"):
+            if isinstance(node.get(k), str) and "&" in node[k]:
+                node[k] = html.unescape(node[k])
+    return node
 
 
 class ShafaError(RuntimeError):
@@ -144,7 +155,7 @@ class Shafa:
                 .replace("characteristics: $characteristics) {", "characteristics: $characteristics, searchText: $searchText) {")
         data = self._post("WEB_CatalogProducts", query, v)
         p = data["products"]
-        return [e["node"] for e in p["edges"]], bool(p["pageInfo"]["hasNextPage"])
+        return [clean(e["node"]) for e in p["edges"]], bool(p["pageInfo"]["hasNextPage"])
 
     def products_multi(self, variants: list[tuple[list[int], list[int]]], *, brands: list[int] | None,
                        catalog: str | None = None, sizes: list[int] | None = None, price_to: int | None = None,
@@ -193,7 +204,7 @@ class Shafa:
             p = data.get(a)
             if p is None:
                 raise ShafaError(f"GraphQL: немає відповіді для {a}")
-            out[qi].append(([e["node"] for e in p["edges"]], bool(p["pageInfo"]["hasNextPage"])))
+            out[qi].append(([clean(e["node"]) for e in p["edges"]], bool(p["pageInfo"]["hasNextPage"])))
         return out
 
     def find_brands(self, name: str, first: int = 20) -> list[dict]:
@@ -205,7 +216,7 @@ class Shafa:
 
     def details(self, product_id: int) -> dict | None:
         data = self._post("WEB_ProductDetailsPageProduct", DETAILS_QUERY, {"productId": int(product_id)})
-        return data.get("productDetails")
+        return clean(data.get("productDetails"))
 
 
 def absolute_url(url: str) -> str:

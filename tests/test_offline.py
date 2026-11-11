@@ -338,3 +338,65 @@ class SellerTest(unittest.TestCase):
         with self.assertRaises(rules.ConfigError):
             rules.loads("defaults: {seller: дехто}\nbrands:\n  - {name: COS, id: 1}\n")
 
+
+
+class Review1111Test(unittest.TestCase):
+    """Правки за розбором 11.11.2026."""
+
+    def test_html_unescape(self):
+        from shafa_watch import shafa
+        n = shafa.clean({"name": "Levi's made &amp; crafted 502", "description": "Marc O&#39;Polo"})
+        self.assertEqual(n["name"], "Levi's made & crafted 502")
+        self.assertEqual(n["description"], "Marc O'Polo")
+        self.assertRegex(n["name"], r"made\s*(&|and)\s*crafted")
+
+    def test_blocked_seller(self):
+        it = item(1, 5, "kofti/svitery")
+        it["seller"] = {"id": 1502008, "username": "ivan.vusik"}
+        self.assertIsNotNone(rules.blocked_seller(it, ["ivan.vusik"]))
+        self.assertIsNotNone(rules.blocked_seller(it, [1502008]))
+        self.assertIsNotNone(rules.blocked_seller(it, ["@Ivan.Vusik"]))
+        self.assertIsNone(rules.blocked_seller(it, ["someone"]))
+        self.assertIsNone(rules.blocked_seller(item(2, 5, "obuv"), ["ivan.vusik"]))   # продавця немає в даних
+
+    def test_tactical_categories(self):
+        cfg = rules.loads("brands:\n  - {name: Lowa, id: 1, categories: [взуття]}\n"
+                          "  - {name: Fjallraven, id: 2, categories: [брюки]}\n"
+                          "searches:\n  - {name: Лляні брюки, categories: [брюки], materials: [1967]}\n")
+        by = {r.label: r for r in cfg.rules}
+        self.assertIsNone(rules.quick_check(item(1, 1, "takticheskaya-odezhda/obuv"), by["Lowa"]))
+        self.assertIsNone(rules.quick_check(item(2, 2, "takticheskaya-odezhda/shtany"), by["Fjallraven"]))
+        # серверний catalogSlug пошуку без бренду не розширюється тактичним розділом
+        self.assertEqual(by["Лляні брюки"].catalog, "shtany-i-shorty/bryuki")
+
+    def cfg(self):
+        return rules.loads(textwrap.dedent("""\
+            category_materials:
+              светри: {only: [вовна, кашемір], except: [худі, олімпійки], if_unknown: send}
+            brands:
+              - {name: Lacoste, id: 84, categories: [светри]}
+            searches:
+              - {name: Вовна, categories: [светри], materials: [вовна], title_prefer: "merino|made in scotland"}
+            """))
+
+    def test_olympics_and_unknown_material(self):
+        cfg = self.cfg()
+        lac = cfg.rules[0]
+        # олімпійка — будь-яка тканина
+        self.assertEqual(rules.material_check(item(1, 84, "kofty/olimpiiki", name="Олімпійка lacoste поліестер"),
+                                              {"description": ""}, cfg.category_materials, lac)[0], None)
+        # светр без матеріалу — проходить тихо
+        reason, prio, _ = rules.material_check(item(2, 84, "kofti/svitery", name="Светр lacoste"),
+                                               {"description": ""}, cfg.category_materials, lac)
+        self.assertEqual((reason, prio), (None, False))
+        # бавовна — як і раніше відсіюється
+        self.assertIsNotNone(rules.material_check(item(3, 84, "kofti/svitery", name="Светр lacoste бавовна"),
+                                                  {"description": ""}, cfg.category_materials, lac)[0])
+
+    def test_title_prefer(self):
+        r = self.cfg().rules[1]
+        self.assertTrue(rules.title_priority(item(1, None, "kofti/svitery", name="Merino pullover"), None, r))
+        self.assertTrue(rules.title_priority(item(2, None, "kofti/svitery", name="Светр"),
+                                             {"description": "Made in Scotland"}, r))
+        self.assertFalse(rules.title_priority(item(3, None, "kofti/svitery", name="Светр шерсть"), None, r))
+        self.assertIsNone(rules.title_priority(item(4, 84, "kofti/svitery"), None, self.cfg().rules[0]))

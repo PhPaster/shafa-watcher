@@ -343,6 +343,12 @@ def run(args) -> int:
                 state.mark(pid)
             continue
         considered += 1
+        blocked = rules.blocked_seller(item, st.get("blocked_sellers"))
+        if blocked:
+            log.info("  пропуск %s «%s»: %s", pid, item.get("name"), blocked)
+            if not args.demo:
+                state.mark(pid)
+            continue
         passing, reasons = [], []
         for r in cands:
             reason = rules.quick_check(item, r)
@@ -372,6 +378,9 @@ def run(args) -> int:
             passing = ok
             if passing:
                 priority, mats = checked[0]
+                tp = rules.title_priority(item, d, passing[0])
+                if tp is not None and priority is not False:
+                    priority = tp
         if not passing:
             log.info("  пропуск %s «%s»: %s", pid, item.get("name"), "; ".join(dict.fromkeys(reasons)))
             if not args.demo:

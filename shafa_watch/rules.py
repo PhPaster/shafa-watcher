@@ -58,11 +58,13 @@ SIZE_GROUP_ALIASES = {"одяг": "одяг", "clothes": "одяг", "штани
 # `x/*` = усе всередині x. Увага: частина «Кофт» має префікс `kofty/` (а `kofty` як розділ — жіночий!).
 CATEGORIES: dict[str, dict[str, list[str]]] = {
     "men": {
+        # Тактичний розділ (11.11.2026): продавці кладуть туди трекінгові черевики, карго й штани G-1000
+        # (Lowa Renegade, Salomon, Fjällräven) — без нього такі речі відсіювались категорією.
         "джинси": ["shtany-i-shorty/dzhinsy"],
-        "штани": ["shtany-i-shorty/bryuki", "shtany-i-shorty/dzhinsy"],
-        "брюки": ["shtany-i-shorty/bryuki"],
+        "штани": ["shtany-i-shorty/bryuki", "shtany-i-shorty/dzhinsy", "takticheskaya-odezhda/shtany"],
+        "брюки": ["shtany-i-shorty/bryuki", "takticheskaya-odezhda/shtany"],
         "шорти": ["shtany-i-shorty/shorty", "shtany-i-shorty/bridzhi"],
-        "штани й шорти": ["shtany-i-shorty/*"],
+        "штани й шорти": ["shtany-i-shorty/*", "takticheskaya-odezhda/shtany"],
         "футболки": ["futbolki-i-maiki/futbolki", "futbolki-i-maiki/polo"],
         "поло": ["futbolki-i-maiki/polo"],
         "майки": ["futbolki-i-maiki/maiki"],
@@ -78,10 +80,11 @@ CATEGORIES: dict[str, dict[str, list[str]]] = {
         "худі": ["kofti/hudi", "kofti/svitshoty", "kofty/tolstovki"],
         "світшоти": ["kofti/hudi", "kofti/svitshoty", "kofty/tolstovki"],
         "лонгсліви": ["kofty/longsliv"],
+        "олімпійки": ["kofty/olimpiiki"],
         "гольфи": ["kofty/golfy"],
         "кофти": ["kofti/*", "kofty/*"],
-        "верхній одяг": ["verkhniaia-odezhda/*"],
-        "куртки": ["verkhniaia-odezhda/kurtki", "verkhniaia-odezhda/vetrovki"],
+        "верхній одяг": ["verkhniaia-odezhda/*", "takticheskaya-odezhda/verhnyaya"],
+        "куртки": ["verkhniaia-odezhda/kurtki", "verkhniaia-odezhda/vetrovki", "takticheskaya-odezhda/verhnyaya"],
         "пуховики": ["verkhniaia-odezhda/pukhoviki"],
         "пальто": ["verkhniaia-odezhda/palto"],
         "парки": ["verkhniaia-odezhda/parki"],
@@ -89,10 +92,10 @@ CATEGORIES: dict[str, dict[str, list[str]]] = {
         "дублянки": ["verkhniaia-odezhda/dublenki-i-shuby"],
         "піджаки": ["pidzhaki-i-kostiumy/pidzhaki", "pidzhaki-i-kostiumy/zhakety"],
         "костюми": ["pidzhaki-i-kostiumy/delovye-kostiumy"],
-        "взуття": ["obuv/*"],
+        "взуття": ["obuv/*", "takticheskaya-odezhda/obuv"],
         "кросівки": ["obuv/krossovki", "obuv/kedy"],
         "кеди": ["obuv/kedy"],
-        "черевики": ["obuv/botinki", "obuv/sapogi"],
+        "черевики": ["obuv/botinki", "obuv/sapogi", "takticheskaya-odezhda/obuv"],
         "туфлі": ["obuv/tufli"],
         "мокасини": ["obuv/mokasiny"],
         "сандалі": ["obuv/sandali"],
@@ -108,10 +111,13 @@ MEN_SERVER_PARENTS = {"kofti": "kofti", "kofty": "kofti", "obuv": "obuv", "futbo
                       "verkhniaia-odezhda": "verkhniaia-odezhda", "pidzhaki-i-kostiumy": "pidzhaki-i-kostiumy",
                       "sport-i-otdyh": "sport-i-otdyh", "odezhda-dlia-doma-i-sna": "odezhda-dlia-doma-i-sna"}
 
+TACTICAL = "takticheskaya-odezhda/"
+
 FILTER_KEYS = ("section", "sizes", "categories", "min_condition", "max_price", "min_price", "materials",
                "materials_include", "materials_exclude", "keywords_exclude", "max_age_hours",
                "package", "title_include", "text", "reseller_filter", "seller",
-               "also_categories", "title_in_description", "material_rules", "characteristics")
+               "also_categories", "title_in_description", "material_rules", "characteristics",
+               "title_prefer")
 DEFAULT_PACKAGE = "звичайні"
 # Продавець — характеристика 1757 «Продавець» (однакова в усіх категоріях, перевірено 9.11.2026):
 # 10290 «Приватний», 10291 «Бізнес та інші». «Бізнес та інші» — це й магазини (нові репліки «s-xxl»), і люди,
@@ -229,7 +235,7 @@ def material_check(item: dict, details: dict | None, cms: list[CategoryMaterials
     prefer = {m for c in matched for m in c.prefer}
     if only and not (set(found) & only):
         if not found and all(c.if_unknown == "send" for c in matched if c.only):
-            pass
+            return None, False, found          # матеріал не вказано → надіслати тихо (11.11.2026)
         elif not found:
             return f"матеріал не вказано (треба: {', '.join(sorted(only))})", None, found
         else:
@@ -261,6 +267,7 @@ class Rule:
     category_map: dict[str, list[str]] = field(default_factory=dict)  # назва категорії правила → slug-и
     title_in_description: bool = False    # title_include шукати ще й в описі (потрібна картка): «Uniqlo U»
     material_rules: bool = True           # false — category_materials (лише/пріоритет) не діють: Asics
+    title_prefer: str | None = None       # regex по назві + опису: збіг — ⭐ і звук, інакше тихо (вовняні светри без бренду)
     characteristics: list[int] = field(default_factory=list)  # інші характеристики (серверний фільтр, І з матеріалом):
                                                                # «Стать: для чоловіків» шапок 2418
 
@@ -272,14 +279,16 @@ class Rule:
     def catalog(self) -> str | None:
         """catalogSlug для запиту. Бренди: лише розділ (категорії — локально, щоб не дробити групу).
         Пошук без бренду: найвужчий спільний чоловічий батько категорій, інакше розділ."""
-        if not self.brandless or self.section != "men" or not self.categories:
+        # тактичний розділ — лише локальний фільтр брендів; серверний catalogSlug пошуків без бренду
+        # він не розширює (інакше «Лляні брюки» перейшли б на весь розділ men)
+        cats = [c for c in self.categories if not c.startswith(TACTICAL)]
+        if not self.brandless or self.section != "men" or not cats:
             return self.section
-        parents = {MEN_SERVER_PARENTS.get(c.split("/")[0]) for c in self.categories}
+        parents = {MEN_SERVER_PARENTS.get(c.split("/")[0]) for c in cats}
         if len(parents) != 1 or None in parents:
             return self.section
-        if len(self.categories) == 1 and not self.categories[0].endswith("*") \
-                and not self.categories[0].startswith("kofty/"):
-            return self.categories[0]
+        if len(cats) == 1 and not cats[0].endswith("*") and not cats[0].startswith("kofty/"):
+            return cats[0]
         return parents.pop()
 
     def query_key(self) -> str:
@@ -501,7 +510,7 @@ def _check_keys(d: dict, allowed: set[str], where: str) -> None:
 def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> Rule:
     section = fields.get("section")
     where = label
-    for rx in ("materials_include", "materials_exclude", "keywords_exclude", "title_include"):
+    for rx in ("materials_include", "materials_exclude", "keywords_exclude", "title_include", "title_prefer"):
         if fields.get(rx):
             try:
                 re.compile(fields[rx])
@@ -517,7 +526,7 @@ def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> R
         sizes=resolve_sizes(fields.get("sizes"), section, where),
         categories=list(dict.fromkeys(s for pats in cat_map.values() for s in pats)),
         category_map=cat_map, title_in_description=bool(fields.get("title_in_description", False)),
-        material_rules=bool(fields.get("material_rules", True)),
+        material_rules=bool(fields.get("material_rules", True)), title_prefer=fields.get("title_prefer"),
         characteristics=_int_list(fields.get("characteristics"), f"{where}: characteristics"),
         min_condition=fields.get("min_condition"), max_price=fields.get("max_price"),
         min_price=fields.get("min_price"), materials=resolve_materials(fields.get("materials"), where),
@@ -705,6 +714,23 @@ def quick_check(item: dict, rule: Rule) -> str | None:
     if (item.get("statusTitle") or "AVAILABLE") != "AVAILABLE":
         return f"статус {item.get('statusTitle')}"
     return None
+
+
+def blocked_seller(item: dict, blocked) -> str | None:
+    """Чорний список продавців (settings.blocked_sellers: логін або id). Продавець є вже в списку товарів."""
+    seller = item.get("seller") or {}
+    names = {str(b).strip().lower().lstrip("@") for b in blocked or []}
+    if names and ((seller.get("username") or "").lower() in names or str(seller.get("id")) in names):
+        return f"продавець {seller.get('username') or seller.get('id')} у чорному списку"
+    return None
+
+
+def title_priority(item: dict, details: dict | None, rule: Rule) -> bool | None:
+    """title_prefer: збіг у назві чи описі — ⭐ і звук (True), інакше тихо (False); без поля — None."""
+    if not rule.title_prefer:
+        return None
+    hay = (item.get("name") or "") + "\n" + ((details or {}).get("description") or "")
+    return bool(re.search(rule.title_prefer, hay, re.I))
 
 
 def material_text(details: dict | None, item: dict) -> str:

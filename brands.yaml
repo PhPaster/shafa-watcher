@@ -14,6 +14,9 @@ settings:
   max_brands_per_query: 100   # перевірено: сервер приймає 100 id брендів в одному запиті
   max_slow_requests_per_run: 40 # скільки груп повільних пакетів можна за прохід (10.11: було 6; групи йдуть пачками)
   aliases_per_request: 10     # скільки аліасів (група × варіант продавця) в одному HTTP-запиті до Shafa
+  # Чорний список продавців (логін зі сторінки shafa.ua/uk/member/<логін> або id): їхні речі не надсилаються.
+  blocked_sellers:
+    - ivan.vusik              # id 1502008; 11.11.2026: нереальні ціни, спам однотипних оголошень
   # Пакети: як часто опитувати (хвилини). Воркфлоу запускається кожні 10 хв. 10.11.2026: частіше, бо групи
   # тепер ідуть пачками (аліаси GraphQL) — кількість HTTP-запитів за прохід майже не зросла.
   packages:
@@ -41,7 +44,8 @@ measurements:
 
 # Матеріали за категоріями (для всіх брендів і пошуків): only — лише такі; prefer — ⭐ і звук, решта тихо.
 category_materials:
-  светри: {only: [вовна, кашемір, альпака, ангора], except: [худі]}
+  # 11.11.2026: олімпійки й зіпки — будь-яка тканина (як худі); матеріал не вказано — надіслати тихо
+  светри: {only: [вовна, кашемір, альпака, ангора], except: [худі, олімпійки], if_unknown: send}
   взуття: {prefer: [шкіра, замша, нубук]}
   піжами: {prefer: [бавовна, льон, шовк, вовна, кашемір]}
 
@@ -2495,10 +2499,12 @@ searches:
     materials: [1725]                 # «Шовк» у сорочках
   # 10.11.2026: вовняні светри без бренду лише з країною/пряжею в назві (~10/добу), піжами (~4/добу),
   # вовняні шапки всіх брендів зі списку (розміри 59/60 і One size; id розмірів і матеріалів шапок — інші)
-  - name: 'Вовняні светри: походження й пряжа'
+  # 11.11.2026: усі вовняні светри в моїх розмірах (L/XL, поле «Матеріал» — вовна/кашемір/альпака), будь-який
+  # бренд або без бренду. Країна/пряжа/меринос у назві чи описі — ⭐ і звук, решта — тихо.
+  - name: 'Вовняні светри (без бренду)'
     categories: [светри]
     materials: [вовна, кашемір, альпака]
-    title_include: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel
+    title_prefer: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|british|британ|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel|merino|мерино
   - name: Піжами
     # лише якісні бренди (10.11.2026): Marks & Spencer, M&S, Polo Ralph Lauren, Ralph Lauren, Zimmerli of Switzerland, Calida, Hanro, Derek Rose, Schiesser, Mey, Novila, Sunspel, Brooks Brothers, Charles Tyrwhitt, Tommy Hilfiger, Hugo Boss, Boss, Calvin Klein, Paul Smith, Hackett, Gant, Lacoste, Pringle of Scotland, Seidensticker, Lands' End, GAP, Muji, John Lewis, Jockey
     brands: [734, 18142, 143, 47965, 47373, 44396, 46148, 59402, 46233, 48935, 101710, 49854, 45906, 44434, 159, 324, 46341, 197, 2471, 44897, 2850, 84, 46895, 44818, 4423, 57, 46141, 3193, 47254]
