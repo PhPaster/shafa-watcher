@@ -425,3 +425,13 @@ class Review1111Test(unittest.TestCase):
         self.assertIsNone(rules.material_check(ok, None, cfg.category_materials, sw)[0])
         h = item(3, None, "holovni-ubory/shapky", name="Шапка 30% вовна 70% акрил")
         self.assertIsNotNone(rules.material_check(h, None, cfg.category_materials, hat)[0])
+
+    def test_rule_min_share_natural(self):
+        cfg = rules.loads("searches:\n  - {name: Брюки, categories: [брюки], materials: [1980], min_share: 50}\n")
+        r = cfg.rules[0]
+        self.assertEqual(r.min_share, 50)
+        cut = item(1, None, "shtany-i-shorty/bryuki", name="Брюки 30% вовна, 70% поліестер")
+        self.assertIn("натуральних волокон у складі 30%", rules.material_check(cut, None, cfg.category_materials, r)[0])
+        for name in ("Брюки 100% льон", "Брюки вовна 55%, поліестер 45%", "Вовняні брюки"):
+            self.assertIsNone(rules.material_check(item(2, None, "shtany-i-shorty/bryuki", name=name), None,
+                                                   cfg.category_materials, r)[0], name)

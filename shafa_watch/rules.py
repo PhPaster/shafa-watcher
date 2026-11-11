@@ -117,7 +117,7 @@ FILTER_KEYS = ("section", "sizes", "categories", "min_condition", "max_price", "
                "materials_include", "materials_exclude", "keywords_exclude", "max_age_hours",
                "package", "title_include", "text", "reseller_filter", "seller",
                "also_categories", "title_in_description", "material_rules", "characteristics",
-               "title_prefer")
+               "title_prefer", "min_share")
 DEFAULT_PACKAGE = "звичайні"
 # Продавець — характеристика 1757 «Продавець» (однакова в усіх категоріях, перевірено 9.11.2026):
 # 10290 «Приватний», 10291 «Бізнес та інші». «Бізнес та інші» — це й магазини (нові репліки «s-xxl»), і люди,
@@ -165,6 +165,7 @@ MATERIALS: dict[str, tuple[str, str | None]] = {
 # Частка вовни в складі (11.11.2026): «76% бавовна 7% вовна», «вовна 60%», «вовняний (60%)». Вовноподібні волокна
 # сумуються; якщо відсотки вказано лише для інших волокон — вовни не більше за 100 − їхня сума.
 WOOL_FIBERS = {"вовна", "кашемір", "альпака", "ангора", "мохер", "верблюжа вовна"}
+NATURAL_FIBERS = WOOL_FIBERS | {"шовк", "льон"}   # для правил з min_share: брюки, піджаки, пальта
 _OTHER_FIBERS = {
     "нейлон": r"нейлон|поліамід|полиамид|nylon|polyamid",
     "віскоза": r"віскоз|вискоз|viscose|\brayon",
@@ -180,14 +181,17 @@ def _fiber_near(fragment: str, from_end: bool) -> tuple[int, str] | None:
     best = None
     for name, rx in pats.items():
         for m in re.finditer(rx, fragment, re.I):
-            dist = len(fragment) - m.end() if from_end else m.start()
+            end = m.end()
+            while end < len(fragment) and fragment[end].isalpha():   # «вовн|а» — рахувати від кінця слова
+                end += 1
+            dist = len(fragment) - end if from_end else m.start()
             if best is None or dist < best[0]:
                 best = (dist, name)
     return best
 
 
-def wool_share(text: str) -> int | None:
-    """Відсоток вовноподібних волокон за складом у тексті; None — складу з відсотками немає.
+def wool_share(text: str, fibers: set[str] = WOOL_FIBERS) -> int | None:
+    """Відсоток волокон `fibers` (за замовчуванням вовноподібних) за складом у тексті; None — складу з відсотками немає.
     Напрям («76% бавовна» чи «бавовна 76%») визначається за першим відсотком і діє для всього тексту."""
     text = text or ""
     pairs = []
@@ -205,15 +209,15 @@ def wool_share(text: str) -> int | None:
             break
     if not direction:
         return None
-    fibers: dict[str, int] = {}
+    found: dict[str, int] = {}
     for pct, a, b in pairs:
         hit = (a or b) if direction == "after" else (b or a)
         if hit:
-            fibers[hit[1]] = max(fibers.get(hit[1], 0), pct)   # назва й опис часто повторюють склад
-    wool = sum(v for k, v in fibers.items() if k in WOOL_FIBERS)
-    if wool:
-        return min(wool, 100)
-    return max(0, 100 - sum(fibers.values()))
+            found[hit[1]] = max(found.get(hit[1], 0), pct)   # назва й опис часто повторюють склад
+    wanted = sum(v for k, v in found.items() if k in fibers)
+    if wanted:
+        return min(wanted, 100)
+    return max(0, 100 - sum(found.values()))
 
 
 _GENUINE = re.compile(r"натуральн\w*\s+(шкір|кож|замш)|genuine\s+leather|real\s+leather|full\s*grain", re.I)
@@ -284,6 +288,10 @@ def material_check(item: dict, details: dict | None, cms: list[CategoryMaterials
     matched = [c for c in cms if _cm_applies(c, slug, rule, constrained)]
     text = material_text(details, item)
     found = sorted(detect_materials(text))
+    if rule is not None and rule.min_share:      # правило: натуральних волокон у складі (відсотками) не менше N %
+        share = wool_share(text, NATURAL_FIBERS)
+        if share is not None and share < rule.min_share:
+            return f"натуральних волокон у складі {share}% (треба від {rule.min_share}%)", None, found
     if not matched:
         return None, None, found
     only = {m for c in matched for m in c.only}
@@ -327,6 +335,7 @@ class Rule:
     category_map: dict[str, list[str]] = field(default_factory=dict)  # назва категорії правила → slug-и
     title_in_description: bool = False    # title_include шукати ще й в описі (потрібна картка): «Uniqlo U»
     material_rules: bool = True           # false — category_materials (лише/пріоритет) не діють: Asics
+    min_share: int | None = None          # мінімальний % натуральних волокон (вовна, кашемір, шовк, льон…), якщо склад указано
     title_prefer: str | None = None       # regex по назві + опису: збіг — ⭐ і звук, інакше тихо (вовняні светри без бренду)
     characteristics: list[int] = field(default_factory=list)  # інші характеристики (серверний фільтр, І з матеріалом):
                                                                # «Стать: для чоловіків» шапок 2418
@@ -587,6 +596,7 @@ def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> R
         categories=list(dict.fromkeys(s for pats in cat_map.values() for s in pats)),
         category_map=cat_map, title_in_description=bool(fields.get("title_in_description", False)),
         material_rules=bool(fields.get("material_rules", True)), title_prefer=fields.get("title_prefer"),
+        min_share=int(fields["min_share"]) if fields.get("min_share") else None,
         characteristics=_int_list(fields.get("characteristics"), f"{where}: characteristics"),
         min_condition=fields.get("min_condition"), max_price=fields.get("max_price"),
         min_price=fields.get("min_price"), materials=resolve_materials(fields.get("materials"), where),
