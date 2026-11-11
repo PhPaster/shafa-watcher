@@ -162,6 +162,60 @@ MATERIALS: dict[str, tuple[str, str | None]] = {
     "акрил": (r"акрил|acrylic", None),
     "поліестер": (r"поліест|полиэст|polyester", None),
 }
+# Частка вовни в складі (11.11.2026): «76% бавовна 7% вовна», «вовна 60%», «вовняний (60%)». Вовноподібні волокна
+# сумуються; якщо відсотки вказано лише для інших волокон — вовни не більше за 100 − їхня сума.
+WOOL_FIBERS = {"вовна", "кашемір", "альпака", "ангора", "мохер", "верблюжа вовна"}
+_OTHER_FIBERS = {
+    "нейлон": r"нейлон|поліамід|полиамид|nylon|polyamid",
+    "віскоза": r"віскоз|вискоз|viscose|\brayon",
+    "еластан": r"еластан|эластан|elastan|спандекс|spandex|лайкр|lycra",
+    "модал": r"\bмодал|\bmodal",
+}
+_PCT = re.compile(r"(\d{1,3})\s*%")
+
+
+def _fiber_near(fragment: str, from_end: bool) -> tuple[int, str] | None:
+    """Найближче до відсотка волокно у фрагменті: (відстань у символах, назва)."""
+    pats = {**{k: v[0] for k, v in MATERIALS.items()}, **_OTHER_FIBERS}
+    best = None
+    for name, rx in pats.items():
+        for m in re.finditer(rx, fragment, re.I):
+            dist = len(fragment) - m.end() if from_end else m.start()
+            if best is None or dist < best[0]:
+                best = (dist, name)
+    return best
+
+
+def wool_share(text: str) -> int | None:
+    """Відсоток вовноподібних волокон за складом у тексті; None — складу з відсотками немає.
+    Напрям («76% бавовна» чи «бавовна 76%») визначається за першим відсотком і діє для всього тексту."""
+    text = text or ""
+    pairs = []
+    for m in _PCT.finditer(text):
+        pct = int(m.group(1))
+        if not 0 < pct <= 100:
+            continue
+        after = re.split(r"[\d%]", text[m.end():m.end() + 25], maxsplit=1)[0]
+        before = re.split(r"[\d%]", text[max(0, m.start() - 25):m.start()][::-1], maxsplit=1)[0][::-1]
+        pairs.append((pct, _fiber_near(after, False), _fiber_near(before, True)))
+    direction = None
+    for _, a, b in pairs:
+        if a or b:
+            direction = "after" if a and (not b or a[0] <= b[0]) else "before"
+            break
+    if not direction:
+        return None
+    fibers: dict[str, int] = {}
+    for pct, a, b in pairs:
+        hit = (a or b) if direction == "after" else (b or a)
+        if hit:
+            fibers[hit[1]] = max(fibers.get(hit[1], 0), pct)   # назва й опис часто повторюють склад
+    wool = sum(v for k, v in fibers.items() if k in WOOL_FIBERS)
+    if wool:
+        return min(wool, 100)
+    return max(0, 100 - sum(fibers.values()))
+
+
 _GENUINE = re.compile(r"натуральн\w*\s+(шкір|кож|замш)|genuine\s+leather|real\s+leather|full\s*grain", re.I)
 
 
@@ -197,8 +251,9 @@ class CategoryMaterials:
     prefer: list[str] = field(default_factory=list)
     if_unknown: str = "skip"      # only + матеріал не вказано: skip — відсіяти, send — надіслати
     except_patterns: list[str] = field(default_factory=list)   # except: [худі] — ці підкатегорії без правила
+    min_share: int | None = None   # мінімальний % вовноподібних волокон, якщо склад указано відсотками
 
-CATEGORY_MATERIAL_KEYS = {"only", "prefer", "if_unknown", "except"}
+CATEGORY_MATERIAL_KEYS = {"only", "prefer", "if_unknown", "except", "min_share"}
 
 
 def _cm_applies(c: CategoryMaterials, slug: str | None, rule: "Rule | None", constrained: set[str]) -> bool:
@@ -233,6 +288,11 @@ def material_check(item: dict, details: dict | None, cms: list[CategoryMaterials
         return None, None, found
     only = {m for c in matched for m in c.only}
     prefer = {m for c in matched for m in c.prefer}
+    need = max((c.min_share or 0) for c in matched)
+    if need:
+        share = wool_share(text)
+        if share is not None and share < need:
+            return f"вовни в складі {share}% (треба від {need}%)", None, found
     if only and not (set(found) & only):
         if not found and all(c.if_unknown == "send" for c in matched if c.only):
             return None, False, found          # матеріал не вказано → надіслати тихо (11.11.2026)
@@ -482,8 +542,8 @@ def resolve_materials(spec, where: str) -> list[int]:
         else:
             raise ConfigError(f"{where}: невідомий матеріал «{m}». Відомі: {', '.join(MATERIAL_IDS)} "
                               f"або id (python tools/lookup.py materials kofti)")
-    if len(ids) > 3:
-        raise ConfigError(f"{where}: сайт приймає до 3 матеріалів у фільтрі")
+    if len(ids) > 6:   # 11.11.2026: сервер приймає й 5 id однієї характеристики (АБО), більше не перевіряли
+        raise ConfigError(f"{where}: не більше 6 матеріалів у фільтрі")
     return sorted(set(ids))
 
 
@@ -648,7 +708,8 @@ def loads(text: str) -> Config:
         cms.append(CategoryMaterials(str(cat).strip().lower(), resolve_categories([cat], section, where),
                                      resolve_material_names(spec.get("only"), where),
                                      resolve_material_names(spec.get("prefer"), where), unknown,
-                                     resolve_categories(spec.get("except"), section, where)))
+                                     resolve_categories(spec.get("except"), section, where),
+                                     int(spec["min_share"]) if spec.get("min_share") else None))
     meas = raw.get("measurements") or {}
     _check_keys(meas, {"waist_half_min", "length_min", "inseam_min", "insole"}, "measurements")
     if meas.get("insole") and (not isinstance(meas["insole"], list) or len(meas["insole"]) != 2):

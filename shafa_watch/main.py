@@ -251,6 +251,9 @@ def run(args) -> int:
     groups = cfg.groups()
     backfill_h = force_bf or float(st.get("backfill_hours", 0) or 0)   # перший прохід нового бренду
     due = groups if force_bf else select_due(groups, cfg, state)
+    if getattr(args, "only", None):                 # разовий прохід лише по групах, чия назва містить текст
+        due = [g for g in due if any(args.only.lower() in r.label.lower() for r in g.rules)]
+        log.info("лише групи з «%s»: %s", args.only, ", ".join(g.label() for g in due) or "немає")
     if len(due) < len(groups):
         log.info("за розкладом пакетів: %d з %d груп", len(due), len(groups))
     photos_n = int(st.get("photos", 3))
@@ -412,7 +415,8 @@ def run(args) -> int:
 
     if force_bf and not args.demo:
         try:
-            tg.text(f"📦 <b>Довантаження за {force_bf:g} год</b> завершено: переглянуто {considered}, "
+            what = f" («{args.only}»)" if getattr(args, "only", None) else ""
+            tg.text(f"📦 <b>Довантаження за {force_bf:g} год</b>{what} завершено: переглянуто {considered}, "
                     f"надіслано {notified}. Далі — лише нові речі кожні 10 хв.")
         except Exception as e:  # noqa: BLE001
             log.error("підсумок довантаження: %s", e)
@@ -462,6 +466,8 @@ def main(argv=None) -> int:
                    help="надіслати N найсвіжіших відповідних товарів, ігноруючи стан (для перевірки вигляду)")
     p.add_argument("--backfill", type=float, default=0,
                    help="разово: усі бренди, надіслати відповідні речі за останні N годин (надіслані раніше — ні)")
+    p.add_argument("--only", default="",
+                   help="лише групи, у назві правила яких є цей текст (напр. разове довантаження одного пошуку)")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,

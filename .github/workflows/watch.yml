@@ -17,6 +17,9 @@ on:
       backfill:
         description: "Разово: усі бренди, надіслати відповідні речі за останні N годин (напр. 72), 0 = звичайний запуск"
         default: "0"
+      only:
+        description: "Лише групи, у назві правила яких є цей текст (напр. «Пухові»); порожньо = усі"
+        default: ""
 
 permissions:
   contents: write
@@ -85,7 +88,8 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
-        run: python3 -m shafa_watch --demo "${{ github.event.inputs.demo || '0' }}" --backfill "${{ github.event.inputs.backfill || '0' }}"
+          ONLY: ${{ github.event.inputs.only || '' }}
+        run: python3 -m shafa_watch --demo "${{ github.event.inputs.demo || '0' }}" --backfill "${{ github.event.inputs.backfill || '0' }}" --only "$ONLY"
 
       - name: Зберегти зміни з Telegram у brands.yaml
         if: always() && hashFiles('.bot_changes') != ''

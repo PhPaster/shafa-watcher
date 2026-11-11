@@ -400,3 +400,28 @@ class Review1111Test(unittest.TestCase):
                                              {"description": "Made in Scotland"}, r))
         self.assertFalse(rules.title_priority(item(3, None, "kofti/svitery", name="Светр шерсть"), None, r))
         self.assertIsNone(rules.title_priority(item(4, 84, "kofti/svitery"), None, self.cfg().rules[0]))
+
+    def test_wool_share(self):
+        cases = {"джемпер 76% бавовна 7 % вовна": 7, "светр вовна 60%": 60, "вовняний (60%) пуловер": 60,
+                 "30% wool 70% acrylic": 30, "кашемір 15%, вовна 85%": 100, "80% cotton 20% nylon": 0,
+                 "Склад: вовна - 40%, акрил - 60%": 40, "Вовна + бавовна джемпер": None, "Lambswool 100%": 100}
+        for text, want in cases.items():
+            self.assertEqual(rules.wool_share(text), want, text)
+
+    def test_min_share_and_hats(self):
+        cfg = rules.loads(textwrap.dedent("""\
+            category_materials:
+              светри: {only: [вовна, кашемір], if_unknown: send, min_share: 50}
+              holovni-ubory/shapky: {only: [вовна, кашемір], min_share: 50}
+            searches:
+              - {name: Вовна, categories: [светри], materials: [вовна, кашемір, альпака, ангора]}
+              - {name: Шапки, section: holovni-ubory/shapky, materials: [1602]}
+            """))
+        sw, hat = cfg.rules
+        self.assertEqual(sw.materials, [1225, 1245, 2252, 2266])          # 4 матеріали — дозволено
+        bad = item(1, None, "kofti/svitery", name="Джемпер 76% бавовна 7% вовна")
+        self.assertIn("вовни в складі 7%", rules.material_check(bad, None, cfg.category_materials, sw)[0])
+        ok = item(2, None, "kofti/svitery", name="Светр вовна 60%")
+        self.assertIsNone(rules.material_check(ok, None, cfg.category_materials, sw)[0])
+        h = item(3, None, "holovni-ubory/shapky", name="Шапка 30% вовна 70% акрил")
+        self.assertIsNotNone(rules.material_check(h, None, cfg.category_materials, hat)[0])
