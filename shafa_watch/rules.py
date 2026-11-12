@@ -50,6 +50,24 @@ SIZE_IDS: dict[str, dict[str, dict[str, list[int]]]] = {
 # Європейські номери одягу (L/48) як синоніми літер.
 _CLOTHES_EU = {"42": "XS", "44": "S", "46": "M", "48": "L", "50": "XL", "52": "XXL", "54": "3XL", "56": "4XL",
                "58": "5XL", "60": "6XL"}
+# 12.11.2026: літерні розміри в самому оголошенні («M, L», «38 / M / 46», «L-XL»). Якщо серед них є хоч один
+# не з профілю одягу (M поруч з L, XXL поруч з XL) — річ не надсилаємо: сервер пропускає її за L, а сидить вона як M.
+_LETTER_NORM = {"XXXL": "3XL", "2XL": "XXL", "XXXXL": "4XL", "XXXS": "3XS", "2XS": "XXS"}
+_LETTERS = {"3XS", "XXS", "XS", "S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL", "6XL", "7XL", "8XL"}
+_SIZE_SPLIT = re.compile(r"[\s/,\-–—|]+")
+
+
+def letter_sizes(names) -> list[str]:
+    """Літери розмірів з назв розмірів товару: [«M», «L»] → [M, L]; «40 / L / 48» → [L]; «L-XL» → [L, XL]."""
+    out = []
+    for n in names or []:
+        for t in _SIZE_SPLIT.split(str(n).upper()):
+            t = _LETTER_NORM.get(t, t)
+            if t in _LETTERS and t not in out:
+                out.append(t)
+    return out
+
+
 SIZE_GROUP_ALIASES = {"одяг": "одяг", "clothes": "одяг", "штани": "штани", "pants": "штани",
                       "взуття": "взуття", "shoes": "взуття"}
 
@@ -370,6 +388,7 @@ class Rule:
     genuine_only: bool = False            # відсіяти, якщо в назві чи описі «штучна шкіра», «під замшу» (пошуки шкіри)
     characteristics: list[int] = field(default_factory=list)  # інші характеристики (серверний фільтр, І з матеріалом):
                                                                # «Стать: для чоловіків» шапок 2418
+    size_letters: frozenset = frozenset()  # літери одягу з профілю (L, XL): інші літери в оголошенні — відсів
 
     @property
     def brandless(self) -> bool:
@@ -637,7 +656,15 @@ def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> R
         package=str(fields.get("package") or DEFAULT_PACKAGE), title_include=fields.get("title_include"),
         text=fields.get("text"), reseller_filter=bool(fields.get("reseller_filter", True)),
         seller=resolve_seller(fields.get("seller"), where),
+        size_letters=profile_letters(fields.get("sizes"), section, where),
     )
+
+
+def profile_letters(spec, section: str | None, where: str) -> frozenset:
+    """Літери одягу, дозволені правилом: з id фільтра розмірів (150, 151 → L, XL)."""
+    ids = set(resolve_sizes(spec, section, where))
+    names = {n for n, v in SIZE_IDS["men"]["одяг"].items() if ids & set(v)}
+    return frozenset(n for n in names if n in _LETTERS)
 
 
 def _int_list(v, where: str) -> list[int]:
@@ -752,6 +779,19 @@ def loads(text: str) -> Config:
                                      resolve_material_names(spec.get("prefer"), where), unknown,
                                      resolve_categories(spec.get("except"), section, where),
                                      int(spec["min_share"]) if spec.get("min_share") else None))
+    blocks = []
+    for n, b in enumerate(settings.get("skip_brand_categories") or [], 1):
+        where = f"settings → skip_brand_categories[{n}]"
+        if not isinstance(b, dict):
+            raise ConfigError(f"{where}: очікую {{brands: [id], categories: [...]}}")
+        _check_keys(b, {"brands", "categories", "note"}, where)
+        ids, cats = _int_list(b.get("brands"), where), resolve_categories(b.get("categories"), section, where)
+        if not ids or not cats:
+            raise ConfigError(f"{where}: потрібні і brands, і categories")
+        names = sorted({all_brands.get(i, str(i)) for i in ids})
+        blocks.append({"brands": set(ids), "categories": cats,
+                       "label": f"{' / '.join(names)}: {', '.join(map(str, _as_list(b.get('categories'))))}"})
+    settings = {**settings, "skip_brand_categories": blocks}
     meas = raw.get("measurements") or {}
     _check_keys(meas, {"waist_half_min", "length_min", "length_soft", "inseam_min", "insole"}, "measurements")
     if meas.get("insole") and (not isinstance(meas["insole"], list) or len(meas["insole"]) != 2):
@@ -808,6 +848,9 @@ def quick_check(item: dict, rule: Rule) -> str | None:
             return f"старе оголошення ({age:.0f} год)"
     if not category_ok(item.get("catalogSlug"), rule.categories):
         return f"категорія {item.get('catalogSlug')}"
+    bad = size_mismatch(item, rule)
+    if bad:
+        return bad
     if rule.title_include and not rule.title_in_description \
             and not re.search(rule.title_include, item.get("name") or "", re.I):
         return "немає потрібної фрази в назві"
@@ -817,6 +860,26 @@ def quick_check(item: dict, rule: Rule) -> str | None:
         return "виключене слово в назві"
     if (item.get("statusTitle") or "AVAILABLE") != "AVAILABLE":
         return f"статус {item.get('statusTitle')}"
+    return None
+
+
+def size_mismatch(item: dict, rule: Rule) -> str | None:
+    """«розмір M, L» при профілі L, XL — відсів. Річ без літерних розмірів (W34, 45, 48) не чіпає."""
+    if not rule.size_letters:
+        return None
+    names = [s.get("name") for s in item.get("sizes") or [] if isinstance(s, dict) and s.get("name")]
+    extra = [t for t in letter_sizes(names) if t not in rule.size_letters]
+    if extra:
+        return f"розмір {', '.join(names)} (є {', '.join(extra)}, а треба лише {', '.join(sorted(rule.size_letters, key=len))})"
+    return None
+
+
+def blocked_brand_category(item: dict, blocks) -> str | None:
+    """settings.skip_brand_categories: бренд × категорія, які не надсилаються ніким (Levi's сорочки)."""
+    bid = (item.get("brand") or {}).get("id")
+    for b in blocks or []:
+        if bid in b["brands"] and category_ok(item.get("catalogSlug"), b["categories"]):
+            return f"{b['label']} не надсилаємо"
     return None
 
 

@@ -558,3 +558,47 @@ class Review1211Test(unittest.TestCase):
         self.assertIsNone(rules.measure_check(it, {"description": "пояс 42–48 см"}, m))
         self.assertIsNotNone(rules.measure_check(it, {"description": "пояс 42 см, довжина 104"}, m))
 
+
+
+class Sizes1211Test(unittest.TestCase):
+    """12.11.2026: «розмір M, L» не надсилаємо (лише L, L/XL, XL); сорочки Levi's — нікому."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        main.Shafa = FakeShafa
+        main.Telegram = FakeTelegram
+        FakeTelegram.sent = []
+        FakeShafa.catalog = []
+
+    def sized(self, pid, names, slug="kofti/svitery", brand=None):
+        it = item(pid, brand, slug)
+        it["sizes"] = [{"id": i, "name": n} for i, n in enumerate(names)]
+        return it
+
+    def test_letter_sizes(self):
+        r = rules.loads("my_sizes: {одяг: [L, XL]}\nsearches:\n  - {name: С, categories: [светри], materials: [вовна]}\n").rules[0]
+        self.assertEqual(r.size_letters, {"L", "XL"})
+        for ok in (["L"], ["XL"], ["L", "XL"], ["L-XL"], ["40 / L / 48"], ["48"], ["W34"], []):
+            self.assertIsNone(rules.quick_check(self.sized(1, ok), r), ok)
+        for bad in (["M", "L"], ["M-L"], ["L", "M-L"], ["38 / M / 46", "40 / L / 48"], ["L", "XL", "XXL"],
+                    ["S", "M", "L", "XL", "XXL"], ["XL", "XXL"]):
+            self.assertIn("розмір", rules.quick_check(self.sized(1, bad), r) or "", bad)
+
+    def test_no_letter_profile_no_check(self):
+        r = rules.loads("searches:\n  - {name: Ш, section: holovni-ubory/shapky, sizes: [320, 321], text: x}\n").rules[0]
+        self.assertFalse(r.size_letters)
+        self.assertIsNone(rules.size_mismatch(self.sized(1, ["M", "L"]), r))
+
+    def test_brand_category_block(self):
+        cfg_text = (
+            "settings:\n  skip_brand_categories:\n    - {brands: [82], categories: [сорочки]}\n"
+            "brands:\n  - {name: \"Levi's\", id: 82}\n"
+            "searches:\n  - {name: Лляні сорочки, categories: [сорочки], materials: [1712]}\n")
+        cfg = Path(self.tmp / "b.yaml")
+        cfg.write_text(cfg_text, encoding="utf-8")
+        blocks = rules.loads(cfg_text).settings["skip_brand_categories"]
+        self.assertIsNotNone(rules.blocked_brand_category(item(1, 82, "rubashki/rubashki"), blocks))
+        self.assertIsNone(rules.blocked_brand_category(item(2, 82, "shtany-i-shorty/dzhinsy"), blocks))
+        self.assertIsNone(rules.blocked_brand_category(item(3, 99, "rubashki/rubashki"), blocks))
+        with self.assertRaises(rules.ConfigError):
+            rules.loads("settings:\n  skip_brand_categories:\n    - {brands: [82]}\n")

@@ -17,6 +17,11 @@ settings:
   # Чорний список продавців (логін зі сторінки shafa.ua/uk/member/<логін> або id): їхні речі не надсилаються.
   blocked_sellers:
     - ivan.vusik              # id 1502008; 11.11.2026: нереальні ціни, спам однотипних оголошень
+  # Бренд × категорія, яких не надсилає жоден пошук (і брендовий, і «Лляні сорочки» без бренду).
+  skip_brand_categories:
+    - brands: [82, 64948, 64957]   # Levi's, Levi Strauss & Co., Levi's Premium
+      categories: [сорочки]
+      note: 12.11.2026 — сорочки Levi's не потрібні взагалі (масмаркет, мотлох)
   # Пакети: як часто опитувати (хвилини). Воркфлоу запускається кожні 10 хв. 10.11.2026: частіше, бо групи
   # тепер ідуть пачками (аліаси GraphQL) — кількість HTTP-запитів за прохід майже не зросла.
   packages:
@@ -223,7 +228,7 @@ brands:
     package: гарячі
     searches:
       - name: основне
-        categories: [джинси, верхній одяг, сорочки, теніски]   # 12.11: + сорочки (Red Tab, Sta-Prest, western)
+        categories: [джинси, верхній одяг, теніски]   # 12.11: сорочки прибрано повністю (див. skip_brand_categories)
       - name: "Levi's Vintage Clothing"   # 501XX, Type I/II/III
         title_include: "\\blvc\\b|vintage clothing|big\\s*e\\b|501xx"
         categories: [джинси, верхній одяг, футболки]

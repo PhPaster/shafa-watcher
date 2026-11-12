@@ -386,7 +386,8 @@ def run(args) -> int:
                 state.mark(pid, keys)
             continue
         considered += 1
-        blocked = rules.blocked_seller(item, st.get("blocked_sellers"))
+        blocked = rules.blocked_seller(item, st.get("blocked_sellers")) \
+            or rules.blocked_brand_category(item, st.get("skip_brand_categories"))
         if blocked:
             log.info("  пропуск %s «%s»: %s", pid, item.get("name"), blocked)
             if not args.demo:
