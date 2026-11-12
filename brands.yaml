@@ -39,6 +39,7 @@ my_sizes:
 measurements:
   waist_half_min: 45           # пояс (напівобхват), см; повний обхват ділиться на 2
   length_min: 110              # довжина штанів, см
+  length_soft: 3               # 12.11.2026: на 1–3 см коротші (107–109) — не відсів, а тихо
   inseam_min: 80               # довжина по внутрішньому шву, см (L32 ≈ 81 см)
   insole: [28.5, 30]           # устілка взуття, см
 
@@ -62,6 +63,9 @@ defaults:
   package: звичайні           # пакет для нових брендів (/add)
   # reseller_filter: true     # за замовчуванням: відсіювати «нові s-xl», репліки, опт
   also_categories: [худі]     # додається до категорій кожного бренду (10.11.2026); бренд вимикає: also_categories: []
+  # 12.11.2026: жіночі речі, що потрапили в чоловічий розділ («Жіночий светр 100% кашемір»). «Чоловіча/жіноча»
+  # і «унісекс» не відсіюються. Правило зі своїм keywords_exclude (Ralph Lauren, шапки, піжами) — замість цього.
+  keywords_exclude: ^(?!.*(чоловіч|мужск|унісекс|унисекс|unisex)).*(жіноч|женск|для дівч|для жінок|women)
 
 brands:
 
@@ -140,6 +144,9 @@ brands:
       - name: "Clarks Originals"   # Desert Boot, Wallabee, Desert Trek
         title_include: "desert|wallabee|originals"
         categories: [взуття]
+      # 12.11.2026: класичні туфлі й черевики (шкіра — ⭐ і звук, решта тихо: category_materials.взуття)
+      - name: "Clarks туфлі й черевики"
+        categories: [туфлі, черевики, мокасини]
   - name: "COS"   # вовняні пальта, кашемір, меринос, лляні сорочки, лляні брюки, брюки вільного крою
     id: 1956
     package: гарячі
@@ -216,7 +223,7 @@ brands:
     package: гарячі
     searches:
       - name: основне
-        categories: [джинси, верхній одяг]
+        categories: [джинси, верхній одяг, сорочки, теніски]   # 12.11: + сорочки (Red Tab, Sta-Prest, western)
       - name: "Levi's Vintage Clothing"   # 501XX, Type I/II/III
         title_include: "\\blvc\\b|vintage clothing|big\\s*e\\b|501xx"
         categories: [джинси, верхній одяг, футболки]
@@ -256,10 +263,10 @@ brands:
     package: гарячі
     searches:
       - name: "New Balance Made in USA"   # 990, 992, 993
-        title_include: "made in usa|\\b99[0-3]\\b|сша"
+        title_include: "made in usa|\\b99[0-8](v\\d+)?\\b|\\b(1300|1400)\\b|сша"   # 12.11: «990v3», 997, 998
         categories: [взуття]
       - name: "New Balance Made in UK"   # 991, 1500, 576
-        title_include: "made in (uk|england)|\\b(991|1500|576)\\b|англі"
+        title_include: "made in (uk|england)|\\b(991|1500|576|670|920|1530)(v\\d+)?\\b|англі"
         categories: [взуття]
   - name: "Patagonia"   # Better Sweater, Retro-X, Down Sweater, Isthmus
     id: 2204
@@ -318,6 +325,10 @@ brands:
       - name: "The North Face Purple Label"   # верхній одяг, сорочки, брюки, сумки
         title_include: "purple label|nanamica"
         categories: [верхній одяг, сорочки, брюки]
+      # 12.11.2026: пуховики й аутдор-класика (Nuptse 700 без указаного утеплювача пошук пухових не бачив)
+      - name: "The North Face аутдор"
+        title_include: "nuptse|himalayan|\\b[67]00\\b|gore-?tex|dryloft|denali|summit|mountain\\s*(jacket|light|parka)|steep\\s*tech|mcmurdo|baltoro|vintage|вінтаж|винтаж"
+        categories: [верхній одяг, кофти]
   - name: "Timberland"   # черевики, топсайдери
     id: 268
     package: гарячі
@@ -1358,7 +1369,8 @@ brands:
   - name: "Engelbert Strauss"   # німецький робочий одяг
     id: 47855
     package: звичайні
-    categories: [верхній одяг, штани]
+    categories: [верхній одяг, штани, спецодяг]   # 12.11: майже все в «Спецодязі»; без футболок і шорт
+    keywords_exclude: футболк|шорт|майк|поло\b
   - name: "5.11 Tactical"   # тактичний одяг
     id: 49468
     package: звичайні
@@ -3248,6 +3260,7 @@ searches:
   - name: Шкіряні куртки
     categories: [куртки]
     materials: [2050, 2046]                # шкіра, замша
+    genuine_only: true                     # 12.11: «під замшу», «еко-шкіра» в описі — відсів
   - name: Піджаки з натуральних тканин
     categories: [піджаки, костюми]
     materials: [1426, 1409, 1420, 1411, 1425]    # вовна, кашемір, твід, льон, шовк
@@ -3255,12 +3268,68 @@ searches:
   - name: Шкіряні туфлі
     categories: [туфлі]
     materials: [1665, 1660, 1671]          # шкіра, замша, нубук
+    genuine_only: true                     # 12.11: «під замшу», «еко-шкіра» в описі — відсів
   - name: Шкіряні черевики
     categories: [черевики]
     materials: [1835, 1830, 1841]          # шкіра, замша, нубук («Матеріал верху»)
+    genuine_only: true                     # 12.11: «під замшу», «еко-шкіра» в описі — відсів
   - name: Шкіряні мокасини
     categories: [мокасини]
     materials: [2157, 2152, 2163]          # шкіра, замша, нубук
+    genuine_only: true                     # 12.11: «під замшу», «еко-шкіра» в описі — відсів
+  # 12.11.2026: вовняні светри, у яких продавець не заповнив поле «Матеріал» (пошук вище їх не бачить):
+  # текстовий пошук у назвах розділу «Кофти». Перевірка вовни — category_materials.светри; ⭐ — як вище.
+  - name: "Вовняні светри (текст: вовна)"
+    text: "вовна"
+    categories: [светри]
+    title_prefer: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|british|британ|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel|merino|мерино
+    package: тихі
+  - name: "Вовняні светри (текст: шерсть)"
+    text: "шерсть"
+    categories: [светри]
+    title_prefer: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|british|британ|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel|merino|мерино
+    package: тихі
+  - name: "Вовняні светри (текст: merino)"
+    text: "merino"
+    categories: [светри]
+    title_prefer: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|british|британ|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel|merino|мерино
+    package: тихі
+  - name: "Вовняні светри (текст: меріно)"
+    text: "меріно"
+    categories: [светри]
+    title_prefer: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|british|британ|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel|merino|мерино
+    package: тихі
+  - name: "Вовняні светри (текст: мерино)"
+    text: "мерино"
+    categories: [светри]
+    title_prefer: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|british|британ|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel|merino|мерино
+    package: тихі
+  - name: "Вовняні светри (текст: cashmere)"
+    text: "cashmere"
+    categories: [светри]
+    title_prefer: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|british|британ|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel|merino|мерино
+    package: тихі
+  - name: "Вовняні светри (текст: кашемір)"
+    text: "кашемір"
+    categories: [светри]
+    title_prefer: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|british|британ|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel|merino|мерино
+    package: тихі
+  - name: "Вовняні светри (текст: кашемир)"
+    text: "кашемир"
+    categories: [светри]
+    title_prefer: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|british|британ|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel|merino|мерино
+    package: тихі
+  - name: "Вовняні светри (текст: lambswool)"
+    text: "lambswool"
+    categories: [светри]
+    title_prefer: made\s*in\s*(ireland|scotland|england|great\s*britain|britain|uk|italy|japan|norway|iceland)|british|британ|ірланд|ирланд|шотланд|англі|італі|итали|япон|норвез|ісланд|\baran\b|\bаран|shetland|шетланд|fair\s*isle|lambswool|ламбсвул|cashmere|кашемір|кашемир|альпак|alpaca|mohair|мохер|camel|merino|мерино
+    package: тихі
+  # 12.11.2026: мериносова термобілизна будь-якого бренду (Icebreaker, Odlo, Mons Royale, Woolpower…):
+  # «Матеріал» термобілизни — характеристика 23, вовна 1464
+  - name: Вовняна термобілизна
+    categories: [термобілизна]
+    materials: [1464]
+    min_share: 50
   - name: Піжами
     # лише якісні бренди (10.11.2026): Marks & Spencer, M&S, Polo Ralph Lauren, Ralph Lauren, Zimmerli of Switzerland, Calida, Hanro, Derek Rose, Schiesser, Mey, Novila, Sunspel, Brooks Brothers, Charles Tyrwhitt, Tommy Hilfiger, Hugo Boss, Boss, Calvin Klein, Paul Smith, Hackett, Gant, Lacoste, Pringle of Scotland, Seidensticker, Lands' End, GAP, Muji, John Lewis, Jockey
     brands: [734, 18142, 143, 47965, 47373, 44396, 46148, 59402, 46233, 48935, 101710, 49854, 45906, 44434, 159, 324, 46341, 197, 2471, 44897, 2850, 84, 46895, 44818, 4423, 57, 46141, 3193, 47254]

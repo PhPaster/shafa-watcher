@@ -61,10 +61,14 @@ CATEGORIES: dict[str, dict[str, list[str]]] = {
         # Тактичний розділ (11.11.2026): продавці кладуть туди трекінгові черевики, карго й штани G-1000
         # (Lowa Renegade, Salomon, Fjällräven) — без нього такі речі відсіювались категорією.
         "джинси": ["shtany-i-shorty/dzhinsy"],
-        "штани": ["shtany-i-shorty/bryuki", "shtany-i-shorty/dzhinsy", "takticheskaya-odezhda/shtany"],
+        # Спорт і відпочинок (12.11.2026): трекінгові/лижні штани, фліски, лижні куртки аутдор-брендів — лише
+        # локальний фільтр брендів, як тактичний розділ (серверний catalogSlug пошуків без бренду не змінюється).
+        "штани": ["shtany-i-shorty/bryuki", "shtany-i-shorty/dzhinsy", "takticheskaya-odezhda/shtany",
+                  "sport-i-otdyh/sportivnyye-shtany", "sport-i-otdyh/gornolyzhnaya-odezhda/shtany"],
         "брюки": ["shtany-i-shorty/bryuki", "takticheskaya-odezhda/shtany"],
         "шорти": ["shtany-i-shorty/shorty", "shtany-i-shorty/bridzhi"],
-        "штани й шорти": ["shtany-i-shorty/*", "takticheskaya-odezhda/shtany"],
+        "штани й шорти": ["shtany-i-shorty/*", "takticheskaya-odezhda/shtany", "sport-i-otdyh/sportivnyye-shtany",
+                          "sport-i-otdyh/gornolyzhnaya-odezhda/shtany"],
         "футболки": ["futbolki-i-maiki/futbolki", "futbolki-i-maiki/polo"],
         "поло": ["futbolki-i-maiki/polo"],
         "майки": ["futbolki-i-maiki/maiki"],
@@ -82,16 +86,22 @@ CATEGORIES: dict[str, dict[str, list[str]]] = {
         "лонгсліви": ["kofty/longsliv"],
         "олімпійки": ["kofty/olimpiiki"],
         "гольфи": ["kofty/golfy"],
-        "кофти": ["kofti/*", "kofty/*"],
-        "верхній одяг": ["verkhniaia-odezhda/*", "takticheskaya-odezhda/verhnyaya"],
-        "куртки": ["verkhniaia-odezhda/kurtki", "verkhniaia-odezhda/vetrovki", "takticheskaya-odezhda/verhnyaya"],
+        "кофти": ["kofti/*", "kofty/*", "sport-i-otdyh/sportivnyye-kofty"],
+        "верхній одяг": ["verkhniaia-odezhda/*", "takticheskaya-odezhda/verhnyaya",
+                         "sport-i-otdyh/gornolyzhnaya-odezhda/kurtki"],
+        "куртки": ["verkhniaia-odezhda/kurtki", "verkhniaia-odezhda/vetrovki", "takticheskaya-odezhda/verhnyaya",
+                   "sport-i-otdyh/gornolyzhnaya-odezhda/kurtki"],
         "пуховики": ["verkhniaia-odezhda/pukhoviki"],
         "пальто": ["verkhniaia-odezhda/palto"],
         "парки": ["verkhniaia-odezhda/parki"],
-        "жилетки": ["verkhniaia-odezhda/zhiletki"],
+        "жилетки": ["verkhniaia-odezhda/zhiletki", "pidzhaki-i-kostiumy/zhiletki"],
         "дублянки": ["verkhniaia-odezhda/dublenki-i-shuby"],
         "піджаки": ["pidzhaki-i-kostiumy/pidzhaki", "pidzhaki-i-kostiumy/zhakety"],
-        "костюми": ["pidzhaki-i-kostiumy/delovye-kostiumy"],
+        # 12.11.2026: костюмні жилети й смокінги (пошук «Піджаки з натуральних тканин» отримував їх, але відсіював)
+        "костюми": ["pidzhaki-i-kostiumy/delovye-kostiumy", "pidzhaki-i-kostiumy/zhiletki",
+                    "pidzhaki-i-kostiumy/smokingi"],
+        "термобілизна": ["nizhnee-bele/termobele"],
+        "спецодяг": ["specodezhda-men/*"],
         "взуття": ["obuv/*", "takticheskaya-odezhda/obuv"],
         "кросівки": ["obuv/krossovki", "obuv/kedy"],
         "кеди": ["obuv/kedy"],
@@ -109,15 +119,20 @@ CATEGORIES: dict[str, dict[str, list[str]]] = {
 MEN_SERVER_PARENTS = {"kofti": "kofti", "kofty": "kofti", "obuv": "obuv", "futbolki-i-maiki": "futbolki-i-maiki",
                       "rubashki": "rubashki", "shtany-i-shorty": "shtany-i-shorty",
                       "verkhniaia-odezhda": "verkhniaia-odezhda", "pidzhaki-i-kostiumy": "pidzhaki-i-kostiumy",
-                      "sport-i-otdyh": "sport-i-otdyh", "odezhda-dlia-doma-i-sna": "odezhda-dlia-doma-i-sna"}
+                      "sport-i-otdyh": "sport-i-otdyh", "odezhda-dlia-doma-i-sna": "odezhda-dlia-doma-i-sna",
+                      "nizhnee-bele": "nizhnee-bele"}
 
 TACTICAL = "takticheskaya-odezhda/"
+# Слаги, які додано до категорій лише як локальний фільтр брендів: серверний catalogSlug пошуків без бренду
+# вони не розширюють (інакше «Вовняні брюки» перейшли б на весь розділ men, а ключ групи змінився б).
+LOCAL_ONLY = ("takticheskaya-odezhda/", "sport-i-otdyh/sportivnyye-shtany", "sport-i-otdyh/gornolyzhnaya-odezhda/",
+              "sport-i-otdyh/sportivnyye-kofty")
 
 FILTER_KEYS = ("section", "sizes", "categories", "min_condition", "max_price", "min_price", "materials",
                "materials_include", "materials_exclude", "keywords_exclude", "max_age_hours",
                "package", "title_include", "text", "reseller_filter", "seller",
                "also_categories", "title_in_description", "material_rules", "characteristics",
-               "title_prefer", "min_share")
+               "title_prefer", "min_share", "genuine_only")
 DEFAULT_PACKAGE = "звичайні"
 # Продавець — характеристика 1757 «Продавець» (однакова в усіх категоріях, перевірено 9.11.2026):
 # 10290 «Приватний», 10291 «Бізнес та інші». «Бізнес та інші» — це й магазини (нові репліки «s-xxl»), і люди,
@@ -145,7 +160,7 @@ MATERIAL_IDS = {"бавовна": 1243, "вовна": 1245, "кашемір": 12
 # Матеріали для правил за категоріями: шукаються в назві, описі й полі «Матеріал» (uk / ru / en).
 # (include, exclude): exclude скасовує збіг («штучна шкіра» — не шкіра), якщо поруч немає «натуральна».
 MATERIALS: dict[str, tuple[str, str | None]] = {
-    "вовна": (r"(?<!ба)вовн|шерст|\bwool|merino|мерино|lambswool|ламбсвул|shetland|шетланд", None),
+    "вовна": (r"(?<!ба)вовн|шерст|\bwool|merino|мер[іи]но|lambswool|ламбсвул|shetland|шетланд", None),
     "кашемір": (r"кашем[іи]р|cashmere", None),
     "альпака": (r"альпак|alpaca", None),
     "ангора": (r"ангор|angora", None),
@@ -156,8 +171,10 @@ MATERIALS: dict[str, tuple[str, str | None]] = {
     "бавовна": (r"бавовн|коттон|котон|хлоп(ок|ка|ко)|cotton", None),
     "шкіра": (r"шкір|кожа|кожі|кожан|leather|\bpelle\b|\bleder\b",
               r"штучн\w*\s+(шкір|кож)|еко\s*-?\s*(шкір|кож)|екошкір|экокож|кожзам|шкірзам|дерматин|"
-              r"искусствен\w*\s+кож|faux\s+leather|\bpu\b|vegan\s+leather|кожвініл"),
-    "замша": (r"замш|suede", r"штучн\w*\s+замш|еко\s*-?\s*замш|искусствен\w*\s+замш|faux\s+suede"),
+              r"искусствен\w*\s+кож|faux\s+leather|\bpu\b|vegan\s+leather|кожвініл|"
+              r"п[іо]д\s+(шкір|кож)|імітац\w*\s+(шкір|кож)|имитац\w*\s+кож"),
+    "замша": (r"замш|suede", r"штучн\w*\s+замш|еко\s*-?\s*замш|искусствен\w*\s+замш|faux\s+suede|"
+                        r"п[іо]д\s+замш|імітац\w*\s+замш|имитац\w*\s+замш|мікрозамш|микрозамш"),
     "нубук": (r"нубук|nubuck", None),
     "акрил": (r"акрил|acrylic", None),
     "поліестер": (r"поліест|полиэст|polyester", None),
@@ -166,13 +183,15 @@ MATERIALS: dict[str, tuple[str, str | None]] = {
 # сумуються; якщо відсотки вказано лише для інших волокон — вовни не більше за 100 − їхня сума.
 WOOL_FIBERS = {"вовна", "кашемір", "альпака", "ангора", "мохер", "верблюжа вовна"}
 NATURAL_FIBERS = WOOL_FIBERS | {"шовк", "льон"}   # для правил з min_share: брюки, піджаки, пальта
+# Частка в category_materials (светри, шапки): вовноподібні + шовк (12.11.2026: «55% шовк, 45% кашемір» — не відсів).
+KNIT_FIBERS = WOOL_FIBERS | {"шовк"}
 _OTHER_FIBERS = {
     "нейлон": r"нейлон|поліамід|полиамид|nylon|polyamid",
     "віскоза": r"віскоз|вискоз|viscose|\brayon",
     "еластан": r"еластан|эластан|elastan|спандекс|spandex|лайкр|lycra",
     "модал": r"\bмодал|\bmodal",
 }
-_PCT = re.compile(r"(\d{1,3})\s*%")
+_PCT = re.compile(r"(?<![\d.,])(\d{1,3}(?:[.,]\d+)?)\s*%")   # «67.9% Wool» = 68, не 9 (12.11.2026)
 
 
 def _fiber_near(fragment: str, from_end: bool) -> tuple[int, str] | None:
@@ -196,7 +215,7 @@ def wool_share(text: str, fibers: set[str] = WOOL_FIBERS) -> int | None:
     text = text or ""
     pairs = []
     for m in _PCT.finditer(text):
-        pct = int(m.group(1))
+        pct = round(float(m.group(1).replace(",", ".")))
         if not 0 < pct <= 100:
             continue
         after = re.split(r"[\d%]", text[m.end():m.end() + 25], maxsplit=1)[0]
@@ -221,6 +240,16 @@ def wool_share(text: str, fibers: set[str] = WOOL_FIBERS) -> int | None:
 
 
 _GENUINE = re.compile(r"натуральн\w*\s+(шкір|кож|замш)|genuine\s+leather|real\s+leather|full\s*grain", re.I)
+# Штучна шкіра/замша в назві чи описі (для пошуків шкіри без бренду: поле «Матеріал» продавці ставлять і «під замшу»).
+# Без «PU»: у взутті це зазвичай підошва.
+FAUX_RX = re.compile(r"штучн\w*\s+(шкір|кож|замш)|искусствен\w*\s+(кож|замш)|еко\s*-?\s*(шкір|кож|замш)|екошкір|"
+                     r"экокож|кожзам|шкірзам|дерматин|faux\s+(leather|suede)|vegan\s+leather|кожвініл|"
+                     r"п[іо]д\s+(шкір|кож|замш)|імітац\w*\s+(шкір|кож|замш)|имитац\w*\s+(кож|замш)|мікрозамш|микрозамш",
+                     re.I)
+
+
+def faux_leather(text: str) -> bool:
+    return bool(FAUX_RX.search(text or "")) and not _GENUINE.search(text or "")
 
 
 def detect_materials(text: str) -> set[str]:
@@ -298,9 +327,9 @@ def material_check(item: dict, details: dict | None, cms: list[CategoryMaterials
     prefer = {m for c in matched for m in c.prefer}
     need = max((c.min_share or 0) for c in matched)
     if need:
-        share = wool_share(text)
+        share = wool_share(text, KNIT_FIBERS)
         if share is not None and share < need:
-            return f"вовни в складі {share}% (треба від {need}%)", None, found
+            return f"вовни й шовку в складі {share}% (треба від {need}%)", None, found
     if only and not (set(found) & only):
         if not found and all(c.if_unknown == "send" for c in matched if c.only):
             return None, False, found          # матеріал не вказано → надіслати тихо (11.11.2026)
@@ -337,6 +366,7 @@ class Rule:
     material_rules: bool = True           # false — category_materials (лише/пріоритет) не діють: Asics
     min_share: int | None = None          # мінімальний % натуральних волокон (вовна, кашемір, шовк, льон…), якщо склад указано
     title_prefer: str | None = None       # regex по назві + опису: збіг — ⭐ і звук, інакше тихо (вовняні светри без бренду)
+    genuine_only: bool = False            # відсіяти, якщо в назві чи описі «штучна шкіра», «під замшу» (пошуки шкіри)
     characteristics: list[int] = field(default_factory=list)  # інші характеристики (серверний фільтр, І з матеріалом):
                                                                # «Стать: для чоловіків» шапок 2418
 
@@ -350,7 +380,7 @@ class Rule:
         Пошук без бренду: найвужчий спільний чоловічий батько категорій, інакше розділ."""
         # тактичний розділ — лише локальний фільтр брендів; серверний catalogSlug пошуків без бренду
         # він не розширює (інакше «Лляні брюки» перейшли б на весь розділ men)
-        cats = [c for c in self.categories if not c.startswith(TACTICAL)]
+        cats = [c for c in self.categories if not c.startswith(LOCAL_ONLY)]
         if not self.brandless or self.section != "men" or not cats:
             return self.section
         parents = {MEN_SERVER_PARENTS.get(c.split("/")[0]) for c in cats}
@@ -596,6 +626,7 @@ def _build(fields: dict, label: str, brands: dict[int, str], enabled: bool) -> R
         categories=list(dict.fromkeys(s for pats in cat_map.values() for s in pats)),
         category_map=cat_map, title_in_description=bool(fields.get("title_in_description", False)),
         material_rules=bool(fields.get("material_rules", True)), title_prefer=fields.get("title_prefer"),
+        genuine_only=bool(fields.get("genuine_only", False)),
         min_share=int(fields["min_share"]) if fields.get("min_share") else None,
         characteristics=_int_list(fields.get("characteristics"), f"{where}: characteristics"),
         min_condition=fields.get("min_condition"), max_price=fields.get("max_price"),
@@ -721,7 +752,7 @@ def loads(text: str) -> Config:
                                      resolve_categories(spec.get("except"), section, where),
                                      int(spec["min_share"]) if spec.get("min_share") else None))
     meas = raw.get("measurements") or {}
-    _check_keys(meas, {"waist_half_min", "length_min", "inseam_min", "insole"}, "measurements")
+    _check_keys(meas, {"waist_half_min", "length_min", "length_soft", "inseam_min", "insole"}, "measurements")
     if meas.get("insole") and (not isinstance(meas["insole"], list) or len(meas["insole"]) != 2):
         raise ConfigError("measurements.insole: потрібно [від, до], напр. [28.5, 30]")
     return Config(rules, settings, cms, meas)
@@ -769,12 +800,13 @@ def category_ok(slug: str | None, patterns: list[str]) -> bool:
 
 def quick_check(item: dict, rule: Rule) -> str | None:
     """Фільтри за даними зі списку. Повертає причину відсіву або None."""
-    if not category_ok(item.get("catalogSlug"), rule.categories):
-        return f"категорія {item.get('catalogSlug')}"
+    # вік першим (12.11.2026): інакше старі «підняті» речі в лозі виглядали як відсіяні категорією
     if rule.max_age_hours is not None:
         age = _age_hours(item.get("createdAt"))
         if age is not None and age > float(rule.max_age_hours):
             return f"старе оголошення ({age:.0f} год)"
+    if not category_ok(item.get("catalogSlug"), rule.categories):
+        return f"категорія {item.get('catalogSlug')}"
     if rule.title_include and not rule.title_in_description \
             and not re.search(rule.title_include, item.get("name") or "", re.I):
         return "немає потрібної фрази в назві"
@@ -827,6 +859,8 @@ def detail_check(item: dict, details: dict | None, rule: Rule) -> str | None:
         hay = (item.get("name") or "") + "\n" + ((details or {}).get("description") or "")
         if not re.search(rule.title_include, hay, re.I):
             return "немає потрібної фрази в назві й описі"
+    if rule.genuine_only and faux_leather((item.get("name") or "") + "\n" + ((details or {}).get("description") or "")):
+        return "штучна шкіра/замша за описом"
     if not (rule.materials_include or rule.materials_exclude):
         return None
     text = material_text(details, item)
@@ -873,10 +907,11 @@ def measure_check(item: dict, details: dict | None, m: dict | None) -> str | Non
                     break
         if not slug.endswith("/shorty") and not slug.endswith("/bridzhi"):
             lmin, imin = m.get("length_min"), m.get("inseam_min")
+            soft = float(m.get("length_soft") or 0)        # допуск: трохи коротші приходять тихо (measure_quiet)
             for g in (_LENGTH.findall(text) if lmin else []):
                 v = _f(g)
                 if 80 <= v <= 130:
-                    if v < float(lmin) - 1:
+                    if v < float(lmin) - 1 - soft:
                         return f"довжина {g} см (треба від {lmin})"
                     break
             if imin:
@@ -897,3 +932,20 @@ def measure_check(item: dict, details: dict | None, m: dict | None) -> str | Non
         if vals and not any(lo <= v <= hi for v in vals):
             return f"устілка {vals[0]:g} см (треба {lo:g}–{hi:g})"
     return None
+
+
+def measure_quiet(item: dict, details: dict | None, m: dict | None) -> bool:
+    """Штани трохи коротші за length_min, але в межах length_soft (12.11.2026: 107–109 см при 110) — тихо."""
+    if not m or not m.get("length_min") or not m.get("length_soft"):
+        return False
+    slug = item.get("catalogSlug") or ""
+    if not (slug.startswith("shtany-i-shorty/") or slug.startswith("sport-i-otdyh/sportivnyye-shtany")) \
+            or slug.endswith("/shorty") or slug.endswith("/bridzhi"):
+        return False
+    text = (item.get("name") or "") + "\n" + ((details or {}).get("description") or "")
+    lmin = float(m["length_min"])
+    for g in _LENGTH.findall(text):
+        v = _f(g)
+        if 80 <= v <= 130:
+            return v < lmin - 1
+    return False

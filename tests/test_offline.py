@@ -420,7 +420,7 @@ class Review1111Test(unittest.TestCase):
         sw, hat = cfg.rules
         self.assertEqual(sw.materials, [1225, 1245, 2252, 2266])          # 4 матеріали — дозволено
         bad = item(1, None, "kofti/svitery", name="Джемпер 76% бавовна 7% вовна")
-        self.assertIn("вовни в складі 7%", rules.material_check(bad, None, cfg.category_materials, sw)[0])
+        self.assertIn("в складі 7%", rules.material_check(bad, None, cfg.category_materials, sw)[0])
         ok = item(2, None, "kofti/svitery", name="Светр вовна 60%")
         self.assertIsNone(rules.material_check(ok, None, cfg.category_materials, sw)[0])
         h = item(3, None, "holovni-ubory/shapky", name="Шапка 30% вовна 70% акрил")
@@ -435,3 +435,118 @@ class Review1111Test(unittest.TestCase):
         for name in ("Брюки 100% льон", "Брюки вовна 55%, поліестер 45%", "Вовняні брюки"):
             self.assertIsNone(rules.material_check(item(2, None, "shtany-i-shorty/bryuki", name=name), None,
                                                    cfg.category_materials, r)[0], name)
+
+
+class Review1211Test(unittest.TestCase):
+    """Розбір 12.11.2026: дробові відсотки, шовк у светрах, жилети, порядок фільтрів, повторна перевірка, дублі."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        main.Shafa = FakeShafa
+        main.Telegram = FakeTelegram
+        FakeTelegram.sent = []
+        FakeShafa.catalog = []
+
+    def run_once(self, cfg: Path, **kw):
+        args = argparse.Namespace(config=str(cfg), state=str(self.tmp / "state.json"), dry_run=False, demo=0, **kw)
+        return main.run(args)
+
+    def test_decimal_percent(self):
+        self.assertEqual(rules.wool_share("Високий вміст вовни — 67.9% Wool (з віскозою)"), 68)
+        self.assertEqual(rules.wool_share("вовна 45,5%, поліестер 54,5%"), 46)
+
+    def test_silk_counts_in_knit(self):
+        cfg = rules.loads("category_materials:\n  светри: {only: [вовна, кашемір], min_share: 50}\n"
+                          "searches:\n  - {name: С, categories: [светри], materials: [вовна]}\n")
+        r = cfg.rules[0]
+        for name in ("Светр 55% шовк 45% кашемір", "Светр 65% шовк, 35% кашемір"):
+            self.assertIsNone(rules.material_check(item(1, None, "kofti/svitery", name=name), None,
+                                                   cfg.category_materials, r)[0], name)
+        self.assertIsNotNone(rules.material_check(item(2, None, "kofti/svitery", name="Светр 80% бавовна 20% кашемір"),
+                                                  None, cfg.category_materials, r)[0])
+
+    def test_vests_tuxedo_and_sport_categories(self):
+        r = rules.loads("searches:\n  - {name: П, categories: [піджаки, костюми], materials: [1426]}\n").rules[0]
+        self.assertIsNone(rules.quick_check(item(1, None, "pidzhaki-i-kostiumy/zhiletki"), r))
+        self.assertIsNone(rules.quick_check(item(2, None, "pidzhaki-i-kostiumy/smokingi"), r))
+        self.assertEqual(r.catalog, "pidzhaki-i-kostiumy")
+        b = rules.loads("brands: [{name: M, id: 1, categories: [кофти, штани]}]").rules[0]
+        self.assertIsNone(rules.quick_check(item(3, 1, "sport-i-otdyh/sportivnyye-kofty"), b))
+        self.assertIsNone(rules.quick_check(item(4, 1, "sport-i-otdyh/sportivnyye-shtany"), b))
+        # пошуки без бренду: спорт-слаги не розширюють серверний catalogSlug
+        s = rules.loads("searches:\n  - {name: Б, categories: [штани], materials: [1980]}\n").rules[0]
+        self.assertEqual(s.catalog, "shtany-i-shorty")
+
+    def test_age_reported_before_category(self):
+        r = rules.loads("brands: [{name: X, id: 1, categories: [джинси], max_age_hours: 72}]").rules[0]
+        self.assertIn("старе", rules.quick_check(item(1, 1, "kofti/svitery", hours_ago=500), r))
+
+    def test_faux_leather(self):
+        r = rules.loads("searches:\n  - {name: Ш, categories: [куртки], materials: [2050], genuine_only: true}\n").rules[0]
+        it = item(1, None, "verkhniaia-odezhda/kurtki", name="Сорочка-куртка zara")
+        self.assertIn("штучна", rules.detail_check(it, {"description": "з матеріалу під замшу"}, r))
+        self.assertIsNone(rules.detail_check(it, {"description": "натуральна шкіра, підкладка штучна шкіра"}, r))
+        self.assertIsNone(rules.detail_check(it, {"description": "Шкіра, підошва PU"}, r))
+
+    def test_women_exclude_default(self):
+        rx = ("^(?!.*(чоловіч|мужск|унісекс|унисекс|unisex)).*(жіноч|женск|для дівч|для жінок|women)")
+        r = rules.loads(f"defaults: {{keywords_exclude: '{rx}'}}\nbrands: [{{name: X, id: 1}}]").rules[0]
+        self.assertIsNotNone(rules.quick_check(item(1, 1, "kofti/svitery", name="Жіночий светр 100% кашемір"), r))
+        self.assertIsNone(rules.quick_check(item(2, 1, "kofti/hudi", name="Худі чоловіча/жіноча"), r))
+
+    def test_length_soft_is_quiet(self):
+        m = {"length_min": 110, "length_soft": 3}
+        it = item(1, None, "shtany-i-shorty/bryuki", name="Брюки")
+        self.assertIsNone(rules.measure_check(it, {"description": "Довжина 108 см"}, m))
+        self.assertTrue(rules.measure_quiet(it, {"description": "Довжина 108 см"}, m))
+        self.assertIsNotNone(rules.measure_check(it, {"description": "Довжина 105 см"}, m))
+        self.assertFalse(rules.measure_quiet(it, {"description": "Довжина 112 см"}, m))
+
+    def test_nb_990v3(self):
+        cfg = rules.load(Path(__file__).resolve().parent.parent / "brands.yaml")
+        r = next(x for x in cfg.rules if x.label == "New Balance · New Balance Made in USA")
+        self.assertIsNone(rules.quick_check(item(1, 385, "obuv/krossovki", name="Продам кросівки new balance 990v3"), r))
+
+    def test_recheck_by_new_search_and_no_resend(self):
+        body = BASE.format(extra="").replace("my_sizes:", "settings:\n  backfill_hours: 72\nmy_sizes:")
+        no_search = body.split("searches:")[0]
+        cfg = write(self.tmp, no_search)
+        self.run_once(cfg)                                     # перший прохід бренду A
+        FakeShafa.catalog.append(item(51, 1, "kofti/svitery"))   # светр A (id непарний → «100% вовна»)
+        self.run_once(cfg)
+        self.assertEqual(FakeTelegram.sent, [], "бренд A светри не бере")
+        cfg = write(self.tmp, body)                            # з'явився пошук «Вовна» — річ уже бачена
+        self.run_once(cfg)
+        self.assertEqual(FakeTelegram.sent, ["/uk/item/51"], "новий пошук оцінює вже бачену відсіяну річ")
+        args = argparse.Namespace(config=str(cfg), state=str(self.tmp / "state.json"), dry_run=False, demo=0,
+                                  backfill=168)
+        FakeShafa.catalog[-1]["name"] = "Інша назва"            # змінено назву — антиповтор назви не спрацює
+        main.run(args)
+        self.assertEqual(FakeTelegram.sent, ["/uk/item/51"], "надіслане за id не повторюється")
+
+    def test_sent_seed(self):
+        from shafa_watch import state as st_mod
+        (self.tmp / "data").mkdir()
+        (self.tmp / "data" / "sent_seed.json").write_text('{"ids": [77]}', encoding="utf-8")
+        cfg = write(self.tmp, BASE.format(extra=""))
+        FakeShafa.catalog = [item(77, 1, "shtany-i-shorty/dzhinsy", 5)]
+        self.run_once(cfg, backfill=72)
+        self.assertEqual(FakeTelegram.sent, [])
+        self.assertTrue(st_mod.State(self.tmp / "state.json").was_sent(77))
+
+    def test_shafa_down_fails_fast(self):
+        class Down(FakeShafa):
+            calls = 0
+
+            def products_batch(self, queries):
+                Down.calls += 1
+                raise main.ShafaError("HTTP 522", 522)
+        main.Shafa = Down
+        body = BASE.format(extra="  - name: B\n    id: 2\n    package: інший\n    categories: [джинси]\n"
+                                 "  - name: C\n    id: 3\n    package: третій\n    categories: [джинси]").replace(
+            "my_sizes:", "settings:\n  aliases_per_request: 2\n  packages: {звичайні: 10, інший: 10, третій: 10}\n"
+                         "my_sizes:")
+        cfg = write(self.tmp, body)
+        self.assertEqual(self.run_once(cfg), 1)
+        self.assertEqual(Down.calls, 2, "після двох пачок з 5xx прохід завершується, групи окремо не смикаються")
+        self.assertTrue((self.tmp / "state.json").exists(), "стан збережено")

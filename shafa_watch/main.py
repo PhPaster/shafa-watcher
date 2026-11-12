@@ -126,6 +126,10 @@ def page_query(g: rules.Group, st: dict, page: int = 1, variants=None) -> dict:
                 first=int(st.get("items_per_query", 100)), page=page, search_text=r.text)
 
 
+class ShafaDown(Exception):
+    pass
+
+
 def prefetch_first_pages(shafa: Shafa, due: list[rules.Group], st: dict) -> dict[str, list]:
     """Перші сторінки всіх груп проходу — пачками по settings.aliases_per_request аліасів в одному HTTP-запиті
     (менше запитів і коротший прохід). Пачка впала → її групи підуть окремими запитами у fetch_group."""
@@ -140,6 +144,7 @@ def prefetch_first_pages(shafa: Shafa, due: list[rules.Group], st: dict) -> dict
         batches[-1].append(g)
         size += n
     out: dict[str, list] = {}
+    down = 0
     for b in batches:
         if len(b) == 1:
             continue                       # одна група — звичайний запит у fetch_group
@@ -149,7 +154,14 @@ def prefetch_first_pages(shafa: Shafa, due: list[rules.Group], st: dict) -> dict
             log.warning("пачка з %d груп не вдалася (%s) — окремими запитами", len(b), e)
             if e.status in (403, 429):
                 raise
+            # 12.11.2026: Shafa віддавала 522/502 ~20 хв; кожен запит ~77 с з ретраями → запуск обривав
+            # тайм-аут 8 хв, стан не зберігався. Дві пачки поспіль з 5xx — Shafa лежить, прохід завершуємо.
+            if e.status and e.status >= 500:
+                down += 1
+                if down >= 2:
+                    raise ShafaDown(f"Shafa недоступна: {e}") from e
             continue
+        down = 0
         for g, r in zip(b, res):
             out[g.id] = r
     return out
@@ -228,6 +240,9 @@ def select_due(groups: list[rules.Group], cfg: rules.Config, state: State) -> li
 
 def run(args) -> int:
     state = State(args.state)
+    seeded = state.seed_sent(Path(args.config).with_name("data") / "sent_seed.json")
+    if seeded:
+        log.info("додано %d id уже надісланих речей (захист від дублів)", seeded)
     tg = Telegram(os.getenv("TG_TOKEN"), os.getenv("TG_CHAT"), dry_run=args.dry_run)
     if tg.dry_run:
         log.warning("TG_TOKEN/TG_CHAT не задані або --dry-run: повідомлення лише в лог")
@@ -270,12 +285,24 @@ def run(args) -> int:
     sources: dict[int, list[rules.Group]] = {}
     ok_groups: list[rules.Group] = []
     failed = 0
+    due_fetch = due
     try:
         first_pages = prefetch_first_pages(shafa, due, st)
+        state.health["down_runs"] = 0
+        health.resolve("shafa_down", "Shafa знову відповідає")
+    except ShafaDown as e:                 # Shafa лежить (5xx): не чекати тайм-ауту, зберегти стан
+        log.error("%s — прохід пропущено", e)
+        health.count("errors")
+        state.health["down_runs"] = state.health.get("down_runs", 0) + 1
+        if state.health["down_runs"] >= 3:
+            health.alert("shafa_down", f"Shafa не відповідає {state.health['down_runs']} запуски поспіль ({e}).")
+        failed = len(due)
+        first_pages = {}
+        due_fetch = []
     except ShafaError as e:                # 403/429 — далі кожна група спробує сама й підніме алерт
         log.error("пачка запитів: %s", e)
         first_pages = {}
-    for g in due:
+    for g in due_fetch:
         try:
             items = fetch_group(shafa, g, state, st, bool(args.demo), backfill_h, bool(force_bf),
                                 first_pages.get(g.id))
@@ -328,7 +355,13 @@ def run(args) -> int:
         return bool(backfill_h) and a is not None and a <= backfill_h
 
     # Разове довантаження переглядає й уже бачені речі (надіслані відсіє антиповтор назви й ціни).
-    ids = [pid for pid in found if args.demo or not state.is_seen(pid) or (force_bf and young(pid))]
+    def recheck(pid) -> set[str]:
+        """Уже бачена (відсіяна) річ, яку тепер повернула група, що її ще не оцінювала."""
+        if args.demo or force_bf or not state.is_seen(pid):
+            return set()
+        return state.unevaluated(pid, {g.key for g in sources[pid]})
+
+    ids = [pid for pid in found if args.demo or not state.is_seen(pid) or (force_bf and young(pid)) or recheck(pid)]
     ids.sort(key=lambda pid: (found[pid].get("createdAt") or "", pid), reverse=bool(args.demo))
     if args.demo:
         ids = demo_order(ids, found, sources)
@@ -338,19 +371,26 @@ def run(args) -> int:
         item = found[pid]
         bid = (item.get("brand") or {}).get("id")
         cands: list[rules.Rule] = []
+        only_keys = recheck(pid)
+        keys = [g.key for g in sources[pid]]
+        if not args.demo and state.was_sent(pid):     # уже надсилалось (зокрема в довантаженні) — ніколи вдруге
+            state.mark(pid)
+            continue
         for g in sources[pid]:
+            if only_keys and g.key not in only_keys:
+                continue
             if args.demo or force_bf or state.ready(g.key, bid if g.brand_ids else None) or young(pid):
                 cands += [r for r in g.rules if r.matches_brand(item) and r not in cands]
         if not cands:   # перший прохід для бренду/групи, річ старша за backfill_hours — лише запам'ятати
             if not args.demo:
-                state.mark(pid)
+                state.mark(pid, keys)
             continue
         considered += 1
         blocked = rules.blocked_seller(item, st.get("blocked_sellers"))
         if blocked:
             log.info("  пропуск %s «%s»: %s", pid, item.get("name"), blocked)
             if not args.demo:
-                state.mark(pid)
+                state.mark(pid, keys)
             continue
         passing, reasons = [], []
         for r in cands:
@@ -376,6 +416,8 @@ def run(args) -> int:
                 if mreason:
                     reasons.append(mreason)
                 else:
+                    if rules.measure_quiet(item, d, cfg.measurements):
+                        prio = False               # трохи коротші штани — тихо
                     ok.append(r)
                     checked.append((prio, found_m))
             passing = ok
@@ -385,9 +427,10 @@ def run(args) -> int:
                 if tp is not None and priority is not False:
                     priority = tp
         if not passing:
-            log.info("  пропуск %s «%s»: %s", pid, item.get("name"), "; ".join(dict.fromkeys(reasons)))
+            log.info("  пропуск %s «%s»%s: %s", pid, item.get("name"), " (повторно, новий пошук)" if only_keys else "",
+                     "; ".join(dict.fromkeys(reasons)))
             if not args.demo:
-                state.mark(pid)
+                state.mark(pid, keys)
             continue
         rule = passing[0]
         tkey = f"{rules.norm(item.get('name') or '')[:60]}|{int(float(item.get('price') or 0))}"
@@ -410,6 +453,7 @@ def run(args) -> int:
                 break
         else:
             state.mark(pid)
+            state.mark_sent(pid)
             state.mark_title(tkey)
             health.resolve("telegram", "Telegram знову приймає повідомлення")
             # Зберігати після кожного надісланого: якщо запуск обірветься (GitHub скасовує задачу ubuntu-slim
