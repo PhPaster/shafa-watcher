@@ -91,7 +91,7 @@ brands:
   - name: "Barbour"   # вощені куртки Bedale і Beaufort, стьобані куртки, светри, вельветові сорочки, шарфи
     id: 9602
     package: гарячі
-    categories: [верхній одяг, светри, сорочки]
+    categories: [верхній одяг, светри, сорочки, sport-i-otdyh/sportivnyye-kofty]   # 12.11: + фліски спорт-розділу (Polartec made in England)
   - name: "Brunello Cucinelli"   # кашемір, замшеві куртки, лляні брюки, сорочки
     id: 44426
     package: гарячі
@@ -245,7 +245,7 @@ brands:
   - name: "Mammut"   # аутдор-верхній одяг
     id: 44977
     package: гарячі
-    categories: [верхній одяг]
+    categories: [верхній одяг, штани, sport-i-otdyh/sportivnyye-kofty]   # 12.11: + трекінгові й лижні штани, фліски
   - name: "Marc O'Polo"   # лляні, фланелеві й вельветові сорочки, светри, кардигани, чінос, замшеві куртки
     id: 1482
     package: гарячі
@@ -812,15 +812,15 @@ brands:
   - name: "RAB"   # британські пуховики й мембрани
     id: 46054
     package: звичайні
-    categories: [верхній одяг, светри]
+    categories: [верхній одяг, светри, штани, sport-i-otdyh/sportivnyye-kofty]   # 12.11: + штани, фліски
   - name: "Mountain Equipment"   # британські пуховики
     id: 51669
     package: звичайні
-    categories: [верхній одяг, светри]
+    categories: [верхній одяг, светри, штани, sport-i-otdyh/sportivnyye-kofty]   # 12.11: + штани, фліски
   - name: "Montane"   # британський аутдор
     id: 51360
     package: звичайні
-    categories: [верхній одяг, светри]
+    categories: [верхній одяг, светри, штани, sport-i-otdyh/sportivnyye-kofty]   # 12.11: + штани, фліски
   - name: "Colmar"   # італійські пуховики
     id: 5635
     package: звичайні
@@ -868,7 +868,7 @@ brands:
   - name: "Berghaus"   # британський аутдор
     id: 6713
     package: звичайні
-    categories: [верхній одяг, светри]
+    categories: [верхній одяг, светри, штани, sport-i-otdyh/sportivnyye-kofty]   # 12.11: + штани, фліски
   - name: "Rohan"   # британський трекінговий одяг
     id: 45590
     package: звичайні

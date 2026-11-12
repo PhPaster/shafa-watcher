@@ -65,7 +65,8 @@ CATEGORIES: dict[str, dict[str, list[str]]] = {
         # локальний фільтр брендів, як тактичний розділ (серверний catalogSlug пошуків без бренду не змінюється).
         "штани": ["shtany-i-shorty/bryuki", "shtany-i-shorty/dzhinsy", "takticheskaya-odezhda/shtany",
                   "sport-i-otdyh/sportivnyye-shtany", "sport-i-otdyh/gornolyzhnaya-odezhda/shtany"],
-        "брюки": ["shtany-i-shorty/bryuki", "takticheskaya-odezhda/shtany"],
+        "брюки": ["shtany-i-shorty/bryuki", "takticheskaya-odezhda/shtany", "sport-i-otdyh/sportivnyye-shtany",
+                  "sport-i-otdyh/gornolyzhnaya-odezhda/shtany"],
         "шорти": ["shtany-i-shorty/shorty", "shtany-i-shorty/bridzhi"],
         "штани й шорти": ["shtany-i-shorty/*", "takticheskaya-odezhda/shtany", "sport-i-otdyh/sportivnyye-shtany",
                           "sport-i-otdyh/gornolyzhnaya-odezhda/shtany"],
