@@ -550,3 +550,11 @@ class Review1211Test(unittest.TestCase):
         self.assertEqual(self.run_once(cfg), 1)
         self.assertEqual(Down.calls, 2, "після двох пачок з 5xx прохід завершується, групи окремо не смикаються")
         self.assertTrue((self.tmp / "state.json").exists(), "стан збережено")
+
+    def test_waist_range_takes_max(self):
+        m = {"waist_half_min": 45}
+        it = item(1, None, "sport-i-otdyh/sportivnyye-shtany", name="Штани gramicci")
+        self.assertIsNone(rules.measure_check(it, {"description": "півобхват поясу від 42 до 48 см"}, m))
+        self.assertIsNone(rules.measure_check(it, {"description": "пояс 42–48 см"}, m))
+        self.assertIsNotNone(rules.measure_check(it, {"description": "пояс 42 см, довжина 104"}, m))
+

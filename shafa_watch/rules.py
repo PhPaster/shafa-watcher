@@ -883,6 +883,7 @@ _INSEAM = re.compile(r"(?:внутрішн\w*\s+(?:шв\w*|довжин\w*)|по
 _LENGTH = re.compile(r"(?:\bдовжин\w*|\bдлин\w*|\blength|загальн\w*\s+довжин\w*)(?!\s+(?:по\s+)?(?:кроку|внутр|шагу))"
                      r"\D{0,20}?" + _NUM, re.I)
 _L_INCH = re.compile(r"\b[wW]\s?\d{2}\s*[/xх×\s]\s*[lL]\s?(\d{2})\b")
+_RANGE_TO = re.compile(r"\s*(?:см)?\s*(?:до|[-–—])\s*(\d{2,3}(?:[.,]\d)?)", re.I)
 _INSOLE = re.compile(r"(?:устілк\w*|устiлк\w*|стельк\w*|\binsole|по\s+устілці)\D{0,15}?(\d{2}(?:[.,]\d)?)", re.I)
 _CM = re.compile(r"\b(2[2-9]|3[0-3])(?:[.,](\d))?\s*см\b", re.I)
 
@@ -899,7 +900,12 @@ def measure_check(item: dict, details: dict | None, m: dict | None) -> str | Non
     if slug.startswith("shtany-i-shorty/") or slug.startswith("sport-i-otdyh/sportivnyye-shtany"):
         wmin = m.get("waist_half_min")
         if wmin:
-            for g in _WAIST.findall(text):
+            for mw in _WAIST.finditer(text):
+                g = mw.group(1)
+                # діапазон «пояс від 42 до 48 см», «пояс 42–48» (регульований) — береться більше число (12.11.2026)
+                rng = _RANGE_TO.match(text, mw.end())
+                if rng and _f(rng.group(1)) > _f(g):
+                    g = rng.group(1)
                 v = _f(g)
                 half = v / 2 if v >= 70 else v                 # 88 см — повний обхват, 44 — напівобхват
                 if 30 <= half <= 70 and half < float(wmin) - 0.5:
