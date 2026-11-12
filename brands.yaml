@@ -1618,10 +1618,10 @@ brands:
     id: 58416
     package: рідкісні
     categories: [верхній одяг]
-  - name: "Han Kjobenhavn"   # пальта, трикотаж, джинси
+  - name: "Han Kjobenhavn"   # 12.11.2026: усі речі й усі категорії бренду (раніше лише пальта, трикотаж, джинси)
     id: 83616
     package: рідкісні
-    categories: [верхній одяг, светри, джинси]
+    material_rules: false      # светри будь-якої тканини, взуття без пріоритету шкіри
   - name: "Hanwag"   # Grunten
     id: 46116
     package: рідкісні
@@ -3398,6 +3398,18 @@ searches:
     text: "Golden Fleece"
     title_include: "golden\\s*fleece"
     package: текст щодня
+  # 12.11.2026: частина речей Han Kjøbenhavn на Shafa — під брендом «HAN», Puma (Puma x Han), Givenchy чи без бренду
+  # → текстові пошуки (обидва написання: результати пошуку з «o» і «ø» різні)
+  - name: "Han Kjobenhavn (текст)"
+    text: "kjobenhavn"
+    title_include: "kj[oø]b[eo]nhav"
+    material_rules: false
+    package: рідкісні
+  - name: "Han Kjøbenhavn (текст)"
+    text: "kjøbenhavn"
+    title_include: "kj[oø]b[eo]nhav"
+    material_rules: false
+    package: рідкісні
   - name: "Hansen Garments"   # вільні брюки, куртки-блейзери, сорочки, пальта
     text: "Hansen Garments"
     title_include: "hansen\\s*garments"
